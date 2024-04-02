@@ -1,0 +1,30 @@
+{
+  "name": "service",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "author": "MEI <1596944197@qq.com>",
+  "scripts": {
+    "build": "pnpm clean && tsup",
+    "dev": "esno watch ./index.ts"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "dependencies": {
+    "esno": "^4.7.0",
+    "express": "^4.19.2",
+    "multer": "1.4.5-lts.1",
+    "node-fetch": "^3.3.2",
+    "redis": "^4.6.13"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "tsup": "^8.0.2"
+  },
+  "imports": {
+    "#src/": "src/"
+  }
+}
