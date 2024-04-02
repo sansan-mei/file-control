@@ -2,6 +2,7 @@ import express from 'express'
 import cookies from 'cookie-parser'
 import '#src/api'
 import { renderRoutes } from '#src/utils'
+import { mkdirSync } from 'fs'
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('未处理的异步err:', promise, 'reason:', reason)
@@ -30,11 +31,8 @@ app.all('*', (req, res, next) => {
 
 renderRoutes(router)
 
-
 app.listen(3003, () => {
   console.log('Server is running on port 3003');
 })
-
-
 
 

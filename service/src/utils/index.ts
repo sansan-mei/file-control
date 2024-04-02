@@ -189,7 +189,8 @@ export function resp<T>({
 export function renderRoutes(router: Router) {
   for (const routeConfig of $api.getAllRouter()) {
     const method = routeConfig.method || 'get'
-    router[method](routeConfig.path, routeConfig.middleware || [], routeConfig.handler)
+    const path = `${process.env.NODE_ENV === 'production' ? '/api' : ''}${routeConfig.path}`
+    router[method](path, routeConfig.middleware || [], routeConfig.handler)
     global.console.log(`[Router] ${routeConfig.method || 'get'} ${routeConfig.path} 已启动`)
   }
 }

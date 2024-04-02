@@ -1,12 +1,12 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig({
-  entry: ['/index.ts'],
+  entry: ['./index.ts'],
   outDir: 'build',
   target: 'es2022',
   format: ['esm'],
   splitting: false,
-  sourcemap: true,
+  sourcemap: false,
   minify: false,
   shims: true,
   dts: false,
