@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  app:
+    container_name: 'file-server'
+    image: '1596944197/file-server'
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    ports:
+      - '3003:3003'
+    volumes:
+      - ./file-static:/app/static
+    environment:
+      - NODE_ENV=production
