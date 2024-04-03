@@ -21,12 +21,6 @@ app.use(cors({
 app.use(cookies())
 app.set('trust proxy', true)
 
-
-app.all("*", (req, res, next) => {
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-  next()
-})
-
 app.use(express.static('public', {
   maxAge: '12h',
   immutable: true,
