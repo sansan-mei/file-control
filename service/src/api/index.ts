@@ -2,10 +2,11 @@ import { createReadStream, statSync } from 'fs'
 import { basename, join } from 'path'
 import { unlink } from 'fs/promises'
 import mime from 'mime'
-import { NOT_SHOW_PASS, expireTime } from 'src/constant'
+import { ADMIN, NOT_SHOW_PASS, expireTime } from 'src/constant'
 import { uploadInstance } from 'src/middleware/uploadInstance'
 import { $api, FileApi, catchError, getDirectoryTree, getFolderSize } from 'src/utils'
 import multer from 'multer'
+import { client } from '#src/redis'
 
 /** @其他常量 */
 const uploadList: string[] = []
@@ -31,7 +32,7 @@ $api.add([
   {
 
     path: '/check-file/:hash/:filename',
-    handler(req, res) {
+    async handler(req, res) {
       try {
         const hash = req.params.hash
         const filename = req.params.filename
@@ -41,13 +42,14 @@ $api.add([
           res.status(304).end()
           return
         }
+        const admin = await client.get(ADMIN)
 
         const path = FileApi.getPath(hash)
         const stat = statSync(path)
         const prefixFilename = basename(path)
         const prefix = prefixFilename.slice(0, prefixFilename.indexOf('-'))
         /** @description:验证文件密码是否跟提交的时候一致 */
-        if (token !== '242424' && !path.includes(NOT_SHOW_PASS)) {
+        if (token !== admin && !path.includes(NOT_SHOW_PASS)) {
           if (prefix.includes('#')) {
             const pwd = prefix.slice(0, prefix.indexOf('#'))
             if (filePwd !== pwd)
@@ -111,7 +113,8 @@ $api.add([
         const hash = req.query.hash as string
         const { token, filePwd } = req.cookies
         const path = FileApi.getPath(hash)
-        if ('24124214' === token || path.includes(NOT_SHOW_PASS)) {
+        const admin = await client.get(ADMIN)
+        if (admin === token || path.includes(NOT_SHOW_PASS)) {
           unlink(path).catch(err => console.warn(err))
           FileApi.removePath(hash)
           return { data: null, message: '删除成功' }
