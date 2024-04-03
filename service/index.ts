@@ -14,6 +14,8 @@ process.on('uncaughtException', (error) => {
 
 const app = express()
 const router = express.Router()
+app.use(cors())
+
 app.use(express.static('public', {
   maxAge: '12h',
   immutable: true,
@@ -21,16 +23,6 @@ app.use(express.static('public', {
 app.use(cookies())
 app.use(router)
 app.set('trust proxy', true)
-app.use(cors())
-
-app.all('*', (req, res, next) => {
-  // res.setHeader('Access-Control-Allow-Origin', "*")
-  // res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
-  // res.setHeader('Access-Control-Allow-Methods', '*')
-  // res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-  // res.setHeader('X-Frame-Options', 'DENY')
-  next()
-})
 
 renderRoutes(router)
 
