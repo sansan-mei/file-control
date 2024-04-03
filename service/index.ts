@@ -18,6 +18,9 @@ app.use(cors({
   credentials: true,
   origin: process.env.ALLOW_ORIGIN || '*'
 }))
+app.use(cookies())
+app.set('trust proxy', true)
+
 
 app.all("*", (req, res, next) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
@@ -28,9 +31,7 @@ app.use(express.static('public', {
   maxAge: '12h',
   immutable: true,
 }))
-app.use(cookies())
 app.use(router)
-app.set('trust proxy', true)
 
 renderRoutes(router)
 
