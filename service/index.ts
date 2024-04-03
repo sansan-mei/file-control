@@ -14,7 +14,10 @@ process.on('uncaughtException', (error) => {
 
 const app = express()
 const router = express.Router()
-app.use(cors())
+app.use(cors({
+  credentials: true,
+  origin: process.env.ALLOW_ORIGIN || '*'
+}))
 
 app.use(express.static('public', {
   maxAge: '12h',
