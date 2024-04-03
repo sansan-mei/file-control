@@ -12,7 +12,8 @@
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
     "format": "prettier --write src/",
     "dev:service": "cd service && yarn dev",
-    "watch": "npm-run-all --parallel dev dev:service"
+    "watch": "npm-run-all --parallel dev dev:service",
+    "build:docker": "node start.mjs"
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.12.0",

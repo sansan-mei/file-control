@@ -3,6 +3,7 @@ import cookies from 'cookie-parser'
 import "#src/redis"
 import '#src/api'
 import { renderRoutes } from '#src/utils'
+import cors from 'cors'
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('未处理的异步err:', promise, 'reason:', reason)
@@ -20,13 +21,14 @@ app.use(express.static('public', {
 app.use(cookies())
 app.use(router)
 app.set('trust proxy', true)
+app.use(cors())
 
 app.all('*', (req, res, next) => {
-  process.env.ALLOW_ORIGIN && res.header('Access-Control-Allow-Origin', process.env.ALLOW_ORIGIN)
-  res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
-  res.header('Access-Control-Allow-Methods', '*')
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-  res.setHeader('X-Frame-Options', 'DENY')
+  // res.setHeader('Access-Control-Allow-Origin', "*")
+  // res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  // res.setHeader('Access-Control-Allow-Methods', '*')
+  // res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  // res.setHeader('X-Frame-Options', 'DENY')
   next()
 })
 
