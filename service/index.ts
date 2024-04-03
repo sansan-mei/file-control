@@ -19,6 +19,11 @@ app.use(cors({
   origin: process.env.ALLOW_ORIGIN || '*'
 }))
 
+app.all("*", (req, res, next) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  next()
+})
+
 app.use(express.static('public', {
   maxAge: '12h',
   immutable: true,
