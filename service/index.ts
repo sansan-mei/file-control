@@ -1,8 +1,8 @@
 import express from 'express'
 import cookies from 'cookie-parser'
+import "#src/redis"
 import '#src/api'
 import { renderRoutes } from '#src/utils'
-import { mkdirSync } from 'fs'
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('未处理的异步err:', promise, 'reason:', reason)
