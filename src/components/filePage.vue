@@ -119,6 +119,7 @@ async function createData() {
               <NButton
                 text={true}
                 type="error"
+                style={{ padding: '0 0.5rem' }}
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
