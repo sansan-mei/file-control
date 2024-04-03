@@ -22,6 +22,7 @@ app.use(router)
 app.set('trust proxy', true)
 
 app.all('*', (req, res, next) => {
+  process.env.ALLOW_ORIGIN && res.header('Access-Control-Allow-Origin', process.env.ALLOW_ORIGIN)
   res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
   res.header('Access-Control-Allow-Methods', '*')
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')

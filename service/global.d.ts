@@ -4,6 +4,7 @@ declare global {
       NODE_ENV: 'development' | 'production'
       REDIS_HOST?: string
       REDIS_PORT?: string
+      ALLOW_ORIGIN?: string
     }
   }
 }
