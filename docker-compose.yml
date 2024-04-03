@@ -1,7 +1,7 @@
 version: '3'
 
 services:
-  app:
+  app2:
     container_name: 'file-server'
     image: '1596944197/file-server'
     build:
@@ -12,4 +12,5 @@ services:
     volumes:
       - ./file-static:/app/static
     environment:
-      - NODE_ENV=production
+      NODE_ENV: production
+      ALLOW_ORIGIN: http://43.136.58.73
