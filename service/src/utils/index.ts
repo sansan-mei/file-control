@@ -1,9 +1,11 @@
 import { NOT_SHOW_PASS } from "#src/constant"
 import { basename, join } from "path"
 import CryptoJS from "crypto-js"
-import fs from "fs"
+import fs, { createReadStream } from "fs"
 import type { CatchErrorType, DirectoryNode, MyResponseType, RouterConfig, } from "#src/types"
 import { Router } from "express"
+import crypto from "crypto"
+import { Buffer } from "buffer"
 
 export const FileApi = (() => {
   /** @用来缓存加密未加密的文件路径 */
@@ -193,4 +195,27 @@ export function renderRoutes(router: Router) {
     router[method](path, routeConfig.middleware || [], routeConfig.handler)
     global.console.log(`[Router] ${routeConfig.method || 'get'} ${routeConfig.path} 已启动`)
   }
+}
+
+export async function calculateMD5ByPath(filePath: string) {
+  const hash = crypto.createHash('md5');
+  const fileStream = createReadStream(filePath);
+  return new Promise((resolve, reject) => {
+    fileStream.on('data', function (data: string) {
+      hash.update(data, 'utf8');
+    });
+
+    fileStream.on('end', function () {
+      const fileMD5 = hash.digest('hex');
+      resolve(fileMD5);
+    });
+
+    fileStream.on('error', reject)
+  })
+}
+
+export function calculateMD5FromBuffer(buffer: Buffer) {
+  const hash = crypto.createHash('md5');
+  hash.update(buffer);
+  return hash.digest('hex'); // 返回Buffer的MD5哈希值
 }
