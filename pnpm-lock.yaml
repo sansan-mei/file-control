@@ -14,6 +14,9 @@ dependencies:
   cookie-parser:
     specifier: ^1.4.6
     version: 1.4.6
+  mei-utils:
+    specifier: ^1.0.3
+    version: 1.0.3(typescript@5.4.3)
   naive-ui:
     specifier: ^2.38.1
     version: 2.38.1(vue@3.4.21)
@@ -2677,6 +2680,17 @@ packages:
     engines: {node: '>=12'}
     dependencies:
       '@jridgewell/sourcemap-codec': 1.4.15
+
+  /mei-utils@1.0.3(typescript@5.4.3):
+    resolution: {integrity: sha512-8OflQI87SxMjEbLUiDtFRppqrI+pAr71XfVNPBgz+a59mL+ilXKbcMYBP8I956jfIXcvn/QDlY4PQmWjryI4aQ==}
+    peerDependencies:
+      typescript: ^5.0.0
+    dependencies:
+      axios: 1.6.8
+      typescript: 5.4.3
+    transitivePeerDependencies:
+      - debug
+    dev: false
 
   /memorystream@0.3.1:
     resolution: {integrity: sha512-S3UwM3yj5mtUSEfP41UZmt/0SCoVYUcU1rkXv+BQ5Ig8ndL4sPoJNBUJERafdPb5jjHJGuMgytgKvKIf58XNBw==}

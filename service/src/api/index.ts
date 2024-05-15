@@ -56,9 +56,12 @@ $api.add([
               return res.status(403).end('密码错误')
           }
         }
-        const type = mime.getType(path)
+
+        const type = mime.getType(path);
+        if (type) {
+          res.setHeader('content-type', `${type}; charset=utf-8`); // 确保添加了字符编码
+        }
         res.setHeader('Content-Length', stat.size) // 添加文件大小到响应头
-        type && res.setHeader('content-type', type) // 设置返回类型
         res.setHeader('cache-control', `max-age=${expireTime},public`) // 缓存响应
         res.setHeader('ETag', hash) // 缓存响应
         filename && res.setHeader('Content-Disposition', `inline; filename=${encodeURIComponent(filename)}`) // 设置文件名

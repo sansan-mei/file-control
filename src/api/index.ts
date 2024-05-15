@@ -1,4 +1,22 @@
-import { Delete, get, post } from "@/utils/request"
+import { initAxios, Delete, get, post } from 'mei-utils/client-http'
+
+const request = initAxios({
+  baseURL: import.meta.env.VITE_GLOB_API_URL,
+  withCredentials: true,
+  withXSRFToken: true
+})
+
+request.interceptors.response.use(
+  (response) => {
+    if (response.status === 200)
+      return response
+
+    throw new Error(response.status.toString())
+  },
+  (error) => {
+    return Promise.reject(error)
+  },
+)
 
 // 查询文件夹大小
 export function fetchDirectorySize<T>(size: number) {

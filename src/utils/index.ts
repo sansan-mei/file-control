@@ -1,18 +1,6 @@
-export function getCookieValue(cookieName = 'token') {
-  const cookieValue = document.cookie.match(
-    `(^|;)\\s*${cookieName}\\s*=\\s*([^;]+)`,
-  )
-  return decodeURIComponent((cookieValue ? cookieValue.pop() : '') as string)
-}
+import { getCookieValue, setCookieValue } from 'mei-utils/client'
 
-export function setCookieValue(name: string, value: string, days = 30) {
-  const date = new Date()
-  date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000)
-  const expires = `expires=${date.toUTCString()}`
-  name = encodeURIComponent(name)
-  value = encodeURIComponent(value)
-  document.cookie = `${name}=${value};${expires};path=/;SameSite=Lax`
-}
+export { getCookieValue, setCookieValue }
 
 // 通过编码值打开图片
 export function openUrlByKey({
