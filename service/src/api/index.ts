@@ -34,26 +34,24 @@ $api.add([
     path: '/check-file/:hash/:filename',
     async handler(req, res) {
       try {
-        const hash = req.params.hash
-        const filename = req.params.filename
-        const { token, filePwd } = req.cookies
+        const hash = req.params.hash;
+        const filename = req.params.filename;
+        const { token, filePwd } = req.cookies;
         if (req.headers['if-none-match'] === hash) {
-          res.setHeader('cache-control', `max-age=${expireTime},public`) // 缓存响应
-          res.status(304).end()
-          return
+          res.setHeader('cache-control', `max-age=${expireTime},public`); // 缓存响应
+          res.status(304).end();
+          return;
         }
-        const admin = await client.get(ADMIN)
-
-        const path = FileApi.getPath(hash)
-        const stat = statSync(path)
-        const prefixFilename = basename(path)
-        const prefix = prefixFilename.slice(0, prefixFilename.indexOf('-'))
+        const admin = await client.get(ADMIN);
+        const path = FileApi.getPath(hash);
+        const stat = statSync(path);
+        const prefixFilename = basename(path);
+        const prefix = prefixFilename.slice(0, prefixFilename.indexOf('-'));
         /** @description:验证文件密码是否跟提交的时候一致 */
         if (token !== admin && !path.includes(NOT_SHOW_PASS)) {
           if (prefix.includes('#')) {
-            const pwd = prefix.slice(0, prefix.indexOf('#'))
-            if (filePwd !== pwd)
-              return res.status(403).end('密码错误')
+            const pwd = prefix.slice(0, prefix.indexOf('#'));
+            if (filePwd !== pwd) return res.status(403).end('密码错误');
           }
         }
 
@@ -61,20 +59,41 @@ $api.add([
         if (type) {
           res.setHeader('content-type', `${type}; charset=utf-8`); // 确保添加了字符编码
         }
-        res.setHeader('Content-Length', stat.size) // 添加文件大小到响应头
-        res.setHeader('cache-control', `max-age=${expireTime},public`) // 缓存响应
-        res.setHeader('ETag', hash) // 缓存响应
-        filename && res.setHeader('Content-Disposition', `inline; filename=${encodeURIComponent(filename)}`) // 设置文件名
-        const readStream = createReadStream(path)
-        readStream.on('error', globalThis.console.error)
-        readStream.pipe(res)
+
+        res.setHeader('cache-control', `max-age=${expireTime},public`); // 缓存响应
+        res.setHeader('ETag', hash); // 缓存响应
+
+        // Range support
+        const range = req.headers.range;
+        if (range) {
+          const positions = range.replace(/bytes=/, "").split("-");
+          const start = parseInt(positions[0], 10);
+          const total = stat.size;
+          const end = positions[1] ? parseInt(positions[1], 10) : total - 1;
+          const chunksize = (end - start) + 1;
+
+          res.writeHead(206, {
+            'Content-Range': `bytes ${start}-${end}/${total}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunksize,
+          });
+
+          const readStream = createReadStream(path, { start, end });
+          readStream.on('error', console.error);
+          readStream.pipe(res);
+        } else {
+          res.setHeader('Content-Length', stat.size); // 添加文件大小到响应头
+          filename && res.setHeader('Content-Disposition', `inline; filename=${encodeURIComponent(filename)}`); // 设置文件名
+          const readStream = createReadStream(path);
+          readStream.on('error', console.error);
+          readStream.pipe(res);
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(400);
+        res.end('状态异常');
       }
-      catch (error) {
-        console.error(error)
-        res.status(400)
-        res.end('状态异常')
-      }
-    },
+    }
   },
   // /upload-file post
   {
