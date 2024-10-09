@@ -13,7 +13,8 @@
     "format": "prettier --write src/",
     "dev:service": "cd service && yarn dev",
     "watch": "npm-run-all --parallel dev dev:service",
-    "build:docker": "node start.mjs"
+    "build:docker": "node start.mjs",
+    "preinstall": "cd service && pnpm install"
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.12.0",
