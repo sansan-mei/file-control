@@ -1,11 +1,10 @@
-import { NOT_SHOW_PASS } from "#src/constant"
-import { basename, join } from "path"
-import CryptoJS from "crypto-js"
-import fs, { createReadStream } from "fs"
-import type { CatchErrorType, DirectoryNode, MyResponseType, RouterConfig, } from "#src/types"
-import { Router } from "express"
-import crypto from "crypto"
-import { Buffer } from "buffer"
+import { NOT_SHOW_PASS } from '#src/constant'
+import type { CatchErrorType, DirectoryNode, MyResponseType, RouterConfig } from '#src/types'
+import crypto from 'crypto'
+import CryptoJS from 'crypto-js'
+import { Router } from 'express'
+import fs, { createReadStream } from 'fs'
+import { basename, join } from 'path'
 
 export const FileApi = (() => {
   /** @用来缓存加密未加密的文件路径 */
@@ -13,8 +12,7 @@ export const FileApi = (() => {
   function encrypt(path: string) {
     if (filePathMap.has(path)) {
       return filePathMap.get(path)
-    }
-    else {
+    } else {
       const key = CryptoJS.SHA256(path).toString(CryptoJS.enc.Hex)
       filePathMap.set(path, key)
       filePathMap.set(key, path)
@@ -25,13 +23,13 @@ export const FileApi = (() => {
     return decodeURIComponent(filePathMap.get(hash))
   }
   function removePath(hash: string) {
-    const r = [filePathMap.delete(getPath(hash)), filePathMap.delete(hash)].every(v => v)
+    const r = [filePathMap.delete(getPath(hash)), filePathMap.delete(hash)].every((v) => v)
     return r
   }
   return {
     encrypt,
     getPath,
-    removePath,
+    removePath
   }
 })()
 
@@ -44,7 +42,7 @@ export function getDirectoryTree(path: string): DirectoryNode | null {
       key,
       label: basename(path),
       isFile: false,
-      children: [],
+      children: []
     }
     const files = fs.readdirSync(path).sort((a, b) => {
       // 将文件名转换为Date对象进行比较
@@ -52,19 +50,15 @@ export function getDirectoryTree(path: string): DirectoryNode | null {
       const dateB = new Date(b)
 
       // 如果其中一个日期无效，则返回该日期在前面
-      if (!dateA.getTime())
-        return -1
+      if (!dateA.getTime()) return 1
+      else if (!dateB.getTime()) return -1
 
-      else if (!dateB.getTime())
-        return 1
-
-      // 按日期升序排序，最新的文件排在最后
-      return dateA.getTime() - dateB.getTime()
+      // 按日期降序排序，最新的文件排在前
+      return dateB.getTime() - dateA.getTime()
     })
 
     files.forEach((file) => {
-      if (file === '.gitkeep')
-        return
+      if (file === '.gitkeep') return
       const childPath = join(path, file)
       const childStats = fs.statSync(childPath)
       const childNode = getDirectoryTree(childPath)
@@ -72,12 +66,11 @@ export function getDirectoryTree(path: string): DirectoryNode | null {
       const key = FileApi.encrypt(childPath)
       if (childStats.isDirectory() && childNode) {
         dirNode.children?.push(childNode)
-      }
-      else if (childStats.isFile() && childNode) {
+      } else if (childStats.isFile() && childNode) {
         dirNode.children?.push({
           key,
           label: file.slice(file.indexOf('-') + 1),
-          isFile: true,
+          isFile: true
         })
       }
     })
@@ -86,15 +79,13 @@ export function getDirectoryTree(path: string): DirectoryNode | null {
     } else {
       return null
     }
-  }
-  else if (stats.isFile() && !path.includes(NOT_SHOW_PASS)) {
+  } else if (stats.isFile() && !path.includes(NOT_SHOW_PASS)) {
     return {
       key,
       label: basename(path),
-      isFile: true,
+      isFile: true
     }
-  }
-  else {
+  } else {
     return null
   }
 }
@@ -107,16 +98,12 @@ export function getFolderSize(folderPath: string) {
     const filePath = join(folderPath, file)
     const stats = fs.statSync(filePath)
 
-    if (stats.isFile())
-      totalSize += stats.size
-
-    else if (stats.isDirectory())
-      totalSize += getFolderSize(filePath)
+    if (stats.isFile()) totalSize += stats.size
+    else if (stats.isDirectory()) totalSize += getFolderSize(filePath)
   })
 
   return totalSize / 1024
 }
-
 
 class ApiConfig {
   public router = new Set<RouterConfig>()
@@ -134,11 +121,10 @@ class ApiConfig {
 }
 export const $api = new ApiConfig()
 
-
-export async function catchError
-  <A extends 'stream' | 'other' = 'other', T extends CatchErrorType = CatchErrorType<A>>
-  (res: T['res'] | T, callback: T['callback'], errorMsg?: T['errorMsg']) {
-
+export async function catchError<
+  A extends 'stream' | 'other' = 'other',
+  T extends CatchErrorType = CatchErrorType<A>
+>(res: T['res'] | T, callback: T['callback'], errorMsg?: T['errorMsg']) {
   let r: T['res']
   let c = callback
   let e = errorMsg
@@ -146,25 +132,21 @@ export async function catchError
     r = res.res
     c = res.callback
     e = res.errorMsg
-  }
-  else {
+  } else {
     r = res as T['res']
   }
 
   try {
     const result = await c()
     r.write(typeof result === 'object' ? resp(result) : result)
-  }
-  catch (error: any) {
+  } catch (error: any) {
     if (typeof errorMsg === 'function') {
       errorMsg(error)
-    }
-    else {
+    } else {
       console.warn(error)
       r.write(resp({ status: 'Fail', message: e ?? error.message }))
     }
-  }
-  finally {
+  } finally {
     r.end()
   }
 }
@@ -173,17 +155,16 @@ export function resp<T>({
   data = undefined,
   code = 200,
   message = 'Success',
-  status = 'Success',
+  status = 'Success'
 }: Partial<MyResponseType<T>>) {
   try {
     return JSON.stringify({
       code,
       message,
       data,
-      status,
+      status
     })
-  }
-  catch (error) {
+  } catch (error) {
     console.warn(error)
   }
 }
@@ -198,24 +179,24 @@ export function renderRoutes(router: Router) {
 }
 
 export async function calculateMD5ByPath(filePath: string) {
-  const hash = crypto.createHash('md5');
-  const fileStream = createReadStream(filePath);
+  const hash = crypto.createHash('md5')
+  const fileStream = createReadStream(filePath)
   return new Promise((resolve, reject) => {
     fileStream.on('data', function (data: string) {
-      hash.update(data, 'utf8');
-    });
+      hash.update(data, 'utf8')
+    })
 
     fileStream.on('end', function () {
-      const fileMD5 = hash.digest('hex');
-      resolve(fileMD5);
-    });
+      const fileMD5 = hash.digest('hex')
+      resolve(fileMD5)
+    })
 
     fileStream.on('error', reject)
   })
 }
 
-export function calculateMD5FromBuffer(buffer: Buffer) {
-  const hash = crypto.createHash('md5');
-  hash.update(buffer);
-  return hash.digest('hex'); // 返回Buffer的MD5哈希值
+export function calculateMD5FromBuffer(buffer: crypto.BinaryLike) {
+  const hash = crypto.createHash('md5')
+  hash.update(buffer)
+  return hash.digest('hex') // 返回Buffer的MD5哈希值
 }
