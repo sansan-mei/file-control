@@ -1,5 +1,15 @@
 <script lang="tsx" setup>
-import { onBeforeMount, ref, watch } from 'vue'
+import { deleteFile, fetchDirectorySize, fetchDirectoryTree, uploadFile } from '@/api'
+import { filePwd_K, isPublic_K } from '@/constant'
+import type { DirectoryNode } from '@/types'
+import { getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
+import {
+  FileTrayFullOutline,
+  Folder,
+  FolderOpenOutline,
+  Settings,
+  SettingsOutline
+} from '@vicons/ionicons5'
 import type { TreeOption, UploadFileInfo } from 'naive-ui'
 import {
   NButton,
@@ -13,24 +23,15 @@ import {
   NLayoutContent,
   NScrollbar,
   NSwitch,
+  NTag,
   NTree,
   NUpload,
   NUploadDragger,
   useLoadingBar,
   useMessage
 } from 'naive-ui'
-import {
-  FileTrayFullOutline,
-  Folder,
-  FolderOpenOutline,
-  Settings,
-  SettingsOutline
-} from '@vicons/ionicons5'
 import type { TreeOptions } from 'naive-ui/es/tree/src/interface'
-import { deleteFile, fetchDirectorySize, fetchDirectoryTree, uploadFile } from '@/api'
-import { getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
-import type { DirectoryNode } from '@/types'
-import { filePwd_K, isPublic_K } from '@/constant'
+import { onBeforeMount, ref, watch } from 'vue'
 
 const msg = useMessage()
 const fileList = ref<TreeOptions>([])
@@ -102,44 +103,67 @@ async function createData() {
   } catch (error) {
     console.warn(error)
   }
+}
 
-  function generateFileListData<T extends DirectoryNode[]>(data: T): TreeOptions {
-    return data.map((item) => ({
-      key: item.key,
-      label: item.label,
-      prefix: () => <NIcon>{item.isFile ? <FileTrayFullOutline /> : <Folder />}</NIcon>,
-      ...(item.children
-        ? {
-            children: generateFileListData(item.children)
-          }
-        : {}),
-      ...(item.isFile
-        ? {
-            suffix: () => (
-              <NButton
-                text={true}
-                type="error"
-                style={{ padding: '0 0.5rem' }}
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  deleteFile(item.key)
-                    .then(() => {
-                      msg.success('删除成功')
-                      createData()
-                    })
-                    .catch((res) => {
-                      msg.error(res?.message || '删除失败')
-                    })
-                }}
-              >
-                删除
-              </NButton>
-            )
-          }
-        : {})
-    }))
+const renderFileIcon = (isFile: boolean) => (
+  <NIcon>{isFile ? <FileTrayFullOutline /> : <Folder />}</NIcon>
+)
+
+const renderDeleteButton = (key: string) => (
+  <NButton
+    text={true}
+    type="error"
+    style={{ padding: '0 0.5rem' }}
+    onClick={(e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      handleDeleteFile(key)
+    }}
+  >
+    删除
+  </NButton>
+)
+
+const handleDeleteFile = async (key: string) => {
+  try {
+    await deleteFile(key)
+    msg.success('删除成功')
+    createData()
+  } catch (res: any) {
+    msg.error(res?.message || '删除失败')
   }
+}
+
+const formatFileSize = (size: number) => {
+  if (size < 1024) return `${size.toFixed(2)}B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)}KB`
+  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(2)}MB`
+  return `${(size / (1024 * 1024 * 1024)).toFixed(2)}GB`
+}
+
+const renderLabel = (item: DirectoryNode) => (
+  <div class="flex items-center gap-2">
+    <span class="mr-3">{item.label}</span>
+    {item.isFile && item.size && (
+      <NTag size="small" type="info" class="whitespace-nowrap">
+        {formatFileSize(item.size)}
+      </NTag>
+    )}
+  </div>
+)
+
+function generateFileListData<T extends DirectoryNode[]>(data: T): TreeOptions {
+  return data.map((item) => ({
+    key: item.key,
+    label: () => renderLabel(item),
+    prefix: () => renderFileIcon(!!item.isFile),
+    ...(item.children && {
+      children: generateFileListData(item.children)
+    }),
+    ...(item.isFile && {
+      suffix: () => renderDeleteButton(item.key)
+    })
+  })) as unknown as TreeOptions
 }
 
 const beforeUpload: (options: {
