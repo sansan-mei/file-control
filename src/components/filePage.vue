@@ -227,6 +227,7 @@ watch(switchMode, (val) => {
 })
 watch(showFileSize, (val) => {
   setCookieValue(showFileSize_K, val ? '1' : '0')
+  showFileSize.value = val
 })
 </script>
 
