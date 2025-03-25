@@ -1,8 +1,7 @@
 <script lang="tsx" setup>
 import { deleteFile, fetchDirectorySize, fetchDirectoryTree, uploadFile } from '@/api'
 import { filePwd_K, isPublic_K, showFileSize_K } from '@/constant'
-import type { AnyObject, DirectoryNode } from '@/types'
-import { copyToClip, getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
+import { copyToClip, formatFileSize, getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
 import {
   FileTrayFullOutline,
   Folder,
@@ -41,9 +40,9 @@ const defaultExpandedKeys = ref<any[]>([])
 const pattern = ref('')
 const isSetting = ref(false)
 const isActive = ref(false)
-const switchMode = ref((getCookieValue(filePwd_K) && getCookieValue('isPublic') !== '1') || false)
+const switchMode = ref((getCookieValue(filePwd_K) && getCookieValue(isPublic_K) !== '1') || false)
 const formDisabled = ref(true)
-const filePwd = ref(getCookieValue('filePwd'))
+const filePwd = ref(getCookieValue(filePwd_K))
 const loading = useLoadingBar()
 const showFileSize = ref(getCookieValue(showFileSize_K) === '1')
 
@@ -133,13 +132,6 @@ const handleDeleteFile = async (key: string) => {
   } catch (res: any) {
     msg.error(res?.message || '删除失败')
   }
-}
-
-const formatFileSize = (size: number) => {
-  if (size < 1024) return `${size.toFixed(2)}B`
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)}KB`
-  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(2)}MB`
-  return `${(size / (1024 * 1024 * 1024)).toFixed(2)}GB`
 }
 
 const renderLabel = (item: DirectoryNode) => {

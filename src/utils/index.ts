@@ -12,3 +12,10 @@ export function openUrlByKey({ key, label }: { key: any; label: any }): Window |
 openUrlByKey.getFullPath = ({ key, label }: { key: any; label: any }) => {
   return `${location.origin}/api/check-file/${encodeURIComponent(key as string)}/${encodeURIComponent(label as string)}`
 }
+
+export const formatFileSize = (size: number) => {
+  if (size < 1024) return `${size.toFixed(2)}B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)}KB`
+  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(2)}MB`
+  return `${(size / (1024 * 1024 * 1024)).toFixed(2)}GB`
+}
