@@ -2,7 +2,7 @@
 import { deleteFile, fetchDirectorySize, fetchDirectoryTree, uploadFile } from '@/api'
 import { filePwd_K, isPublic_K, showFileSize_K } from '@/constant'
 import type { AnyObject, DirectoryNode } from '@/types'
-import { getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
+import { copyToClip, getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
 import {
   FileTrayFullOutline,
   Folder,
@@ -142,17 +142,28 @@ const formatFileSize = (size: number) => {
   return `${(size / (1024 * 1024 * 1024)).toFixed(2)}GB`
 }
 
-const renderLabel = (item: DirectoryNode) => (
-  <div class="flex items-center gap-3">
-    <span>{item.label}</span>
+const renderLabel = (item: DirectoryNode) => {
+  return (
+    <div class="flex items-center gap-3">
+      <span
+        onContextmenu={(e: MouseEvent) => {
+          e.preventDefault()
+          copyToClip(openUrlByKey.getFullPath({ key: item.key, label: item.label }))
+          msg.success('已复制文件名')
+        }}
+        class="cursor-context-menu select-none"
+      >
+        {item.label}
+      </span>
 
-    {item.isFile && item.size && showFileSize.value && (
-      <NTag size="small" type="info" class="whitespace-nowrap">
-        {formatFileSize(item.size)}
-      </NTag>
-    )}
-  </div>
-)
+      {item.isFile && item.size && showFileSize.value && (
+        <NTag size="small" type="info" class="whitespace-nowrap">
+          {formatFileSize(item.size)}
+        </NTag>
+      )}
+    </div>
+  )
+}
 
 function generateFileListData<T extends DirectoryNode[]>(data: T): TreeOptions {
   return data.map((item) => ({
