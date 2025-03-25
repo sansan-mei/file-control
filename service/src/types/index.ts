@@ -1,10 +1,11 @@
-import { NextFunction, Request, Response } from "express"
+import { NextFunction, Request, Response } from 'express'
 
 export interface DirectoryNode {
   key: string
   label: string
   isFile: boolean
   children?: DirectoryNode[]
+  size?: number
 }
 
 export type RouterConfig = {
@@ -28,4 +29,3 @@ export interface MyResponseType<T> {
   data: T
   status: 'Success' | 'Fail' | 'Unauthorized'
 }
-
