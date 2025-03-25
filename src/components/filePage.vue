@@ -36,7 +36,7 @@ const msg = useMessage()
 const fileList = ref<TreeOptions>([])
 const valueMap = new Map<TreeOption['key'], boolean>()
 let timer: any
-const defaultExpandedKeys = ref<any[]>([])
+const defaultExpandedKeys = ref<AnyArray>([])
 const pattern = ref('')
 const isSetting = ref(false)
 const isActive = ref(false)
@@ -94,8 +94,8 @@ async function createData() {
   try {
     const { data } = await fetchDirectoryTree<DirectoryNode>()
     if (data?.children?.length) {
-      fileList.value = generateFileListData(data.children)
-      defaultExpandedKeys.value = [data.children.at(-1)?.key]
+      fileList.value = generateFileListData(data.children.reverse())
+      defaultExpandedKeys.value = [data.children.at(0)?.key]
     } else {
       fileList.value = []
       defaultExpandedKeys.value = []
@@ -114,7 +114,7 @@ const renderDeleteButton = (key: string) => (
     text={true}
     type="error"
     style={{ padding: '0 0.5rem' }}
-    onClick={(e) => {
+    onClick={(e: MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
       handleDeleteFile(key)
@@ -277,11 +277,7 @@ watch(showFileSize, (val) => {
             :filter="onFilter"
           />
         </div>
-        <NDrawer
-          v-model:show="isActive"
-          default-width="31rem"
-          style="max-width: 70%; padding: 20px"
-        >
+        <NDrawer v-model:show="isActive" default-width="31rem" class="max-w-[70%] p-4">
           <NCard>
             <NForm :disabled="formDisabled">
               <NFormItem label="文件密码">
