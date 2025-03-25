@@ -14,7 +14,8 @@
     "dev:service": "cd service && yarn dev",
     "watch": "npm-run-all --parallel dev dev:service",
     "build:docker": "node start.mjs",
-    "preinstall": "cd service && pnpm install"
+    "preinstall": "cd service && pnpm install",
+    "dev:all": "npm-run-all --parallel dev dev:service"
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.12.0",
