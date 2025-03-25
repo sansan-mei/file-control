@@ -18,6 +18,7 @@ export default defineConfig((env) => {
       }
     },
     server: {
+      host: true,
       proxy: {
         '/api': {
           target: viteEnv.VITE_APP_API_BASE_URL,
