@@ -1,7 +1,7 @@
 <script lang="tsx" setup>
 import { deleteFile, fetchDirectorySize, fetchDirectoryTree, uploadFile } from '@/api'
-import { filePwd_K, isPublic_K } from '@/constant'
-import type { DirectoryNode } from '@/types'
+import { filePwd_K, isPublic_K, showFileSize_K } from '@/constant'
+import type { AnyObject, DirectoryNode } from '@/types'
 import { getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
 import {
   FileTrayFullOutline,
@@ -45,6 +45,7 @@ const switchMode = ref((getCookieValue(filePwd_K) && getCookieValue('isPublic') 
 const formDisabled = ref(true)
 const filePwd = ref(getCookieValue('filePwd'))
 const loading = useLoadingBar()
+const showFileSize = ref(getCookieValue(showFileSize_K) === '1')
 
 const updatePrefixWithExpaned = (
   _keys: Array<string | number>,
@@ -142,9 +143,10 @@ const formatFileSize = (size: number) => {
 }
 
 const renderLabel = (item: DirectoryNode) => (
-  <div class="flex items-center gap-2">
-    <span class="mr-3">{item.label}</span>
-    {item.isFile && item.size && (
+  <div class="flex items-center gap-3">
+    <span>{item.label}</span>
+
+    {item.isFile && item.size && showFileSize.value && (
       <NTag size="small" type="info" class="whitespace-nowrap">
         {formatFileSize(item.size)}
       </NTag>
@@ -162,7 +164,8 @@ function generateFileListData<T extends DirectoryNode[]>(data: T): TreeOptions {
     }),
     ...(item.isFile && {
       suffix: () => renderDeleteButton(item.key)
-    })
+    }),
+    raw: item
   })) as unknown as TreeOptions
 }
 
@@ -205,6 +208,12 @@ const beforeUpload: (options: {
 const changeMode = () => {
   isActive.value = true
 }
+
+const onFilter = (val: string, node: AnyObject) => {
+  if (node?.raw.label.includes(val)) return true
+  return false
+}
+
 watch(isActive, (val) => {
   isSetting.value = val
   requestIdleCallback(() => (formDisabled.value = !val))
@@ -216,13 +225,16 @@ watch(filePwd, (val) => {
 watch(switchMode, (val) => {
   setCookieValue(isPublic_K, val ? '0' : '1')
 })
+watch(showFileSize, (val) => {
+  setCookieValue(showFileSize_K, val ? '1' : '0')
+})
 </script>
 
 <template>
   <NLayout class="z-40 transition min-h-screen" has-sider>
     <NLayoutContent class="h-full py-8">
       <NScrollbar x-scrollable>
-        <div class="grid gap-4 grid-box ml-2">
+        <div class="grid gap-4 grid-cols-[repeat(2,6.25rem)_6.25rem] ml-2">
           <NButton type="primary" @click="createData"> 刷新数据 </NButton>
           <NUpload
             directory-dnd
@@ -258,6 +270,7 @@ watch(switchMode, (val) => {
             :node-props="nodeProps"
             :on-update:expanded-keys="updatePrefixWithExpaned"
             :default-expanded-keys="defaultExpandedKeys"
+            :filter="onFilter"
           />
         </div>
         <NDrawer
@@ -276,6 +289,12 @@ watch(switchMode, (val) => {
                   <template #unchecked> 已关闭 </template>
                 </NSwitch>
               </NFormItem>
+              <NFormItem label="显示文件大小">
+                <NSwitch v-model:value="showFileSize" :round="false">
+                  <template #checked> 显示 </template>
+                  <template #unchecked> 隐藏 </template>
+                </NSwitch>
+              </NFormItem>
             </NForm>
           </NCard>
         </NDrawer>
@@ -283,9 +302,3 @@ watch(switchMode, (val) => {
     </NLayoutContent>
   </NLayout>
 </template>
-
-<style>
-.grid-box {
-  grid-template-columns: repeat(2, 6.25rem) 6.25rem;
-}
-</style>
