@@ -1,6 +1,7 @@
 <script lang="tsx" setup>
 import { deleteFile, fetchDirectorySize, fetchDirectoryTree, uploadFile } from '@/api'
 import { filePwd_K, isPublic_K, showFileSize_K } from '@/constant'
+import { useIsMobile } from '@/hoooks'
 import { copyToClip, formatFileSize, getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
 import {
   FileTrayFullOutline,
@@ -45,6 +46,7 @@ const formDisabled = ref(true)
 const filePwd = ref(getCookieValue(filePwd_K))
 const loading = useLoadingBar()
 const showFileSize = ref(getCookieValue(showFileSize_K) === '1')
+const isMobile = useIsMobile()
 
 const updatePrefixWithExpaned = (
   _keys: Array<string | number>,
@@ -135,18 +137,21 @@ const handleDeleteFile = async (key: string) => {
 }
 
 const renderLabel = (item: DirectoryNode) => {
+  const elementProps = {
+    onContextmenu: (e: MouseEvent) => {
+      e.preventDefault()
+      copyToClip(openUrlByKey.getFullPath({ key: item.key, label: item.label }))
+      msg.success('已复制文件名')
+    },
+    class: `cursor-context-menu select-none`
+  }
+  const hoverClass =
+    item.isFile && !isMobile.value
+      ? 'hover:scale-105 hover:-translate-y-0.5 transform transition-all duration-300 ease-out hover:font-medium origin-left'
+      : ''
   return (
-    <div class="flex items-center gap-3">
-      <span
-        onContextmenu={(e: MouseEvent) => {
-          e.preventDefault()
-          copyToClip(openUrlByKey.getFullPath({ key: item.key, label: item.label }))
-          msg.success('已复制文件名')
-        }}
-        class="cursor-context-menu select-none"
-      >
-        {item.label}
-      </span>
+    <div class={`flex items-center gap-3 ${hoverClass}`}>
+      <span {...elementProps}>{item.label}</span>
 
       {item.isFile && item.size && showFileSize.value && (
         <NTag size="small" type="info" class="whitespace-nowrap">
