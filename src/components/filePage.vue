@@ -75,14 +75,14 @@ const updatePrefixWithExpaned = (
   }
 }
 
-const nodeProps = ({ option }: { option: TreeOption }) => {
+const nodeProps = ({ option }: { option: TreeOption & { raw: AnyObject } }) => {
   return {
     async onClick() {
       if (!option.children && !option.disabled) {
         if (valueMap.has(option.key)) return
         valueMap.set(option.key, true)
         requestIdleCallback(() => {
-          const win = openUrlByKey({ key: option.key, label: option.label })
+          const win = openUrlByKey({ key: option.key, label: option.raw.label })
           win?.addEventListener('load', () => valueMap.delete(option.key))
           setTimeout(() => valueMap.delete(option.key), 2000)
         })
@@ -242,35 +242,43 @@ watch(showFileSize, (val) => {
 <template>
   <NLayout class="z-40 transition min-h-screen" has-sider>
     <NLayoutContent class="h-full py-8">
-      <NScrollbar x-scrollable>
-        <div class="grid gap-4 grid-cols-[repeat(2,6.25rem)_6.25rem] ml-2">
-          <NButton type="primary" @click="createData"> 刷新数据 </NButton>
-          <NUpload
-            directory-dnd
-            class="flex-1"
-            :action="undefined"
-            multiple
-            :show-file-list="false"
-            with-credentials
-            :default-upload="false"
-            :on-before-upload="beforeUpload"
+      <div class="grid gap-4 md:grid-cols-[repeat(2,6.25rem)_6.25rem] grid-cols-3 ml-2 max-w-[95%]">
+        <NButton type="primary" @click="createData" class="md:w-auto w-full"> 刷新数据 </NButton>
+        <NUpload
+          directory-dnd
+          class="md:w-auto w-full"
+          :action="undefined"
+          multiple
+          :show-file-list="false"
+          with-credentials
+          :default-upload="false"
+          :on-before-upload="beforeUpload"
+        >
+          <NUploadDragger
+            style="padding: 0; border: 0; background-color: white"
+            class="md:w-auto w-full"
           >
-            <NUploadDragger style="padding: 0; border: 0; background-color: white">
-              <NButton>上传文件</NButton>
-            </NUploadDragger>
-          </NUpload>
-          <NButton secondary :type="isSetting ? 'success' : 'tertiary'" @click="changeMode">
-            <template #icon>
-              <NIcon>
-                <Settings v-if="isSetting" />
-                <SettingsOutline v-else />
-              </NIcon>
-            </template>
-            {{ !isSetting ? '设置' : '设置中' }}
-          </NButton>
-        </div>
-        <div class="grid gap-y-2 mt-4">
-          <NInput v-model:value="pattern" placeholder="搜索" style="width: 96%; margin-left: 2%" />
+            <NButton class="md:w-auto w-full">上传文件</NButton>
+          </NUploadDragger>
+        </NUpload>
+        <NButton
+          secondary
+          :type="isSetting ? 'success' : 'tertiary'"
+          @click="changeMode"
+          class="md:w-auto w-full"
+        >
+          <template #icon>
+            <NIcon>
+              <Settings v-if="isSetting" />
+              <SettingsOutline v-else />
+            </NIcon>
+          </template>
+          {{ !isSetting ? '设置' : '设置中' }}
+        </NButton>
+      </div>
+      <div class="grid gap-y-2 mt-4">
+        <NInput v-model:value="pattern" placeholder="搜索" style="width: 96%; margin-left: 2%" />
+        <NScrollbar x-scrollable y-scrollable>
           <NTree
             block-line
             :pattern="pattern"
@@ -280,30 +288,31 @@ watch(showFileSize, (val) => {
             :on-update:expanded-keys="updatePrefixWithExpaned"
             :default-expanded-keys="defaultExpandedKeys"
             :filter="onFilter"
+            virtual-scroll
           />
-        </div>
-        <NDrawer v-model:show="isActive" default-width="31rem" class="max-w-[70%] p-4">
-          <NCard>
-            <NForm :disabled="formDisabled">
-              <NFormItem label="文件密码">
-                <NInput v-model:value="filePwd" placeholder="输入密码" />
-              </NFormItem>
-              <NFormItem label="携带文件密码（只有输入相同密码才能查看该文件)">
-                <NSwitch v-model:value="switchMode" :disabled="!filePwd" :round="false">
-                  <template #checked> 已开启 </template>
-                  <template #unchecked> 已关闭 </template>
-                </NSwitch>
-              </NFormItem>
-              <NFormItem label="显示文件大小">
-                <NSwitch v-model:value="showFileSize" :round="false">
-                  <template #checked> 显示 </template>
-                  <template #unchecked> 隐藏 </template>
-                </NSwitch>
-              </NFormItem>
-            </NForm>
-          </NCard>
-        </NDrawer>
-      </NScrollbar>
+        </NScrollbar>
+      </div>
+      <NDrawer v-model:show="isActive" default-width="31rem" class="max-w-[70%] p-4">
+        <NCard>
+          <NForm :disabled="formDisabled">
+            <NFormItem label="文件密码">
+              <NInput v-model:value="filePwd" placeholder="输入密码" />
+            </NFormItem>
+            <NFormItem label="携带文件密码（只有输入相同密码才能查看该文件)">
+              <NSwitch v-model:value="switchMode" :disabled="!filePwd" :round="false">
+                <template #checked> 已开启 </template>
+                <template #unchecked> 已关闭 </template>
+              </NSwitch>
+            </NFormItem>
+            <NFormItem label="显示文件大小">
+              <NSwitch v-model:value="showFileSize" :round="false">
+                <template #checked> 显示 </template>
+                <template #unchecked> 隐藏 </template>
+              </NSwitch>
+            </NFormItem>
+          </NForm>
+        </NCard>
+      </NDrawer>
     </NLayoutContent>
   </NLayout>
 </template>
