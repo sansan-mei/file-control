@@ -4,7 +4,7 @@ import { Buffer } from 'buffer'
 import crypto from 'crypto'
 import CryptoJS from 'crypto-js'
 import { Router } from 'express'
-import fs, { createReadStream } from 'fs'
+import fs, { createReadStream, statSync } from 'fs'
 import { basename, join } from 'path'
 
 export const FileApi = (() => {
@@ -181,7 +181,7 @@ export function renderRoutes(router: Router) {
   }
 }
 
-export async function calculateMD5ByPath(filePath: string) {
+export async function calculateMD5ByPath(filePath: string): Promise<string> {
   const hash = crypto.createHash('md5')
   const fileStream = createReadStream(filePath)
   return new Promise((resolve, reject) => {
@@ -200,6 +200,15 @@ export async function calculateMD5ByPath(filePath: string) {
 
 export function calculateMD5FromBuffer(buffer: Buffer) {
   const hash = crypto.createHash('md5')
-  hash.update(buffer)
+  hash.update(buffer.toString()) // Convert Buffer to string before updating
   return hash.digest('hex') // 返回Buffer的MD5哈希值
+}
+
+export const isHardLink = (filePath: string) => {
+  try {
+    const stats = statSync(filePath)
+    return stats.nlink > 1
+  } catch (err) {
+    return false
+  }
 }

@@ -2,7 +2,6 @@ import { client } from '#src/redis'
 import { createReadStream, statSync } from 'fs'
 import { unlink } from 'fs/promises'
 import mime from 'mime'
-import multer from 'multer'
 import { basename, join } from 'path'
 import { ADMIN, NOT_SHOW_PASS, expireTime } from 'src/constant'
 import { uploadInstance } from 'src/middleware/uploadInstance'
@@ -12,9 +11,6 @@ import { $api, FileApi, catchError, getDirectoryTree, getFolderSize } from 'src/
 const uploadList: string[] = []
 
 const pathTo = join(__dirname, process.env.NODE_ENV === 'production' ? './static' : '../static')
-
-/** @description 提供给4.0识图用 */
-const upload = uploadInstance.array('photos', 4)
 
 $api.add([
   // /directory-tree
@@ -158,52 +154,6 @@ $api.add([
         },
         '文件不存在'
       )
-    }
-  },
-  // 通用的文件存储
-  {
-    path: '/put-file',
-    method: 'post',
-    handler(req, res) {
-      upload(req, res, (err) => {
-        catchError(res, async () => {
-          if (err instanceof multer.MulterError) {
-            return {
-              status: 'Fail',
-              message: err.message
-            }
-          } else if (err) {
-            return {
-              status: 'Fail',
-              message: err.message
-            }
-          }
-          const data: any[] = []
-          if (Array.isArray(req.files)) {
-            req.files.forEach((f) => {
-              data.push({
-                name: f.originalname,
-                url: FileApi.encrypt(f.path)
-              })
-              setTimeout(() => {
-                unlink(f.path).catch((err) => console.warn(err))
-              }, 360000)
-            })
-          } else {
-            const f = req.file!
-            data.push({
-              name: f.originalname,
-              url: FileApi.encrypt(f.path)
-            })
-            setTimeout(() => {
-              unlink(f.path).catch((err) => console.warn(err))
-            }, 360000)
-          }
-          return {
-            data
-          }
-        })
-      })
     }
   }
 ])
