@@ -14,18 +14,6 @@ export const FileApi = (() => {
   /** @用来缓存加密未加密的文件路径 */
   const filePathMap = new Map()
 
-  function getMd5Path(md5: string) {
-    return md5FileMap.get(md5)
-  }
-
-  function setMd5Path(md5: string, path: string) {
-    md5FileMap.set(md5, path)
-  }
-
-  function removeMd5Path(md5: string) {
-    return md5FileMap.delete(md5)
-  }
-
   function encrypt(path: string) {
     // 先检查是否是文件
     const stats = statSync(path)
@@ -62,10 +50,7 @@ export const FileApi = (() => {
   return {
     encrypt,
     getPath,
-    removePath,
-    getMd5Path,
-    setMd5Path,
-    removeMd5Path
+    removePath
   }
 })()
 
