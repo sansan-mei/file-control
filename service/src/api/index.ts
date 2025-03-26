@@ -1,11 +1,12 @@
+import { ADMIN, NOT_SHOW_PASS, expireTime } from '#src/constant'
+import { uploadInstance } from '#src/middleware/uploadInstance'
 import { client } from '#src/redis'
+import { $api, FileApi, catchError, getDirectoryTree, getFolderSize } from '#src/utils'
 import { createReadStream, statSync } from 'fs'
 import { unlink } from 'fs/promises'
 import mime from 'mime'
 import { basename, join } from 'path'
-import { ADMIN, NOT_SHOW_PASS, expireTime } from 'src/constant'
-import { uploadInstance } from 'src/middleware/uploadInstance'
-import { $api, FileApi, catchError, getDirectoryTree, getFolderSize } from 'src/utils'
+import { nextTick } from 'process'
 
 /** @其他常量 */
 const uploadList: string[] = []
@@ -157,3 +158,8 @@ $api.add([
     }
   }
 ])
+
+/** @在项目启动后重置一下几个map */
+nextTick(() => {
+  getDirectoryTree(pathTo)
+})
