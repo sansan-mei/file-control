@@ -7,10 +7,39 @@ import { Router } from 'express'
 import fs, { createReadStream, statSync } from 'fs'
 import { basename, join } from 'path'
 
+/** @用来缓存md5和文件路径 */
+export const md5FileMap = new Map<string, string>()
+
 export const FileApi = (() => {
   /** @用来缓存加密未加密的文件路径 */
   const filePathMap = new Map()
+
+  function getMd5Path(md5: string) {
+    return md5FileMap.get(md5)
+  }
+
+  function setMd5Path(md5: string, path: string) {
+    md5FileMap.set(md5, path)
+  }
+
+  function removeMd5Path(md5: string) {
+    return md5FileMap.delete(md5)
+  }
+
   function encrypt(path: string) {
+    // 先检查是否是文件
+    const stats = statSync(path)
+    if (stats.isFile()) {
+      // 只对文件计算MD5
+      calculateMD5ByPath(path)
+        .then((md5) => {
+          if (!md5FileMap.has(md5)) {
+            md5FileMap.set(md5, path)
+          }
+        })
+        .catch(console.error)
+    }
+
     if (filePathMap.has(path)) {
       return filePathMap.get(path)
     } else {
@@ -20,17 +49,23 @@ export const FileApi = (() => {
       return key
     }
   }
+
   function getPath(hash: string) {
     return decodeURIComponent(filePathMap.get(hash))
   }
+
   function removePath(hash: string) {
     const r = [filePathMap.delete(getPath(hash)), filePathMap.delete(hash)].every((v) => v)
     return r
   }
+
   return {
     encrypt,
     getPath,
-    removePath
+    removePath,
+    getMd5Path,
+    setMd5Path,
+    removeMd5Path
   }
 })()
 
@@ -59,7 +94,8 @@ export function getDirectoryTree(path: string): DirectoryNode | null {
     })
 
     files.forEach((file) => {
-      if (file === '.gitkeep') return
+      // 忽略 .gitkeep 和 .DS_Store 文件
+      if (file === '.gitkeep' || file === '.DS_Store') return
       const childPath = join(path, file)
       const childStats = fs.statSync(childPath)
       const childNode = getDirectoryTree(childPath)
@@ -204,7 +240,7 @@ export function calculateMD5FromBuffer(buffer: Buffer) {
   return hash.digest('hex') // 返回Buffer的MD5哈希值
 }
 
-export const isHardLink = (filePath: string) => {
+export function isHardLink(filePath: string) {
   try {
     const stats = statSync(filePath)
     return stats.nlink > 1
