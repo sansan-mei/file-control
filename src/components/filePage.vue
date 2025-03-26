@@ -143,21 +143,19 @@ const renderLabel = (item: DirectoryNode) => {
       copyToClip(openUrlByKey.getFullPath({ key: item.key, label: item.label }))
       msg.success('已复制文件名')
     },
-    class: `cursor-context-menu select-none`
+    class: 'cursor-context-menu select-none'
   }
-  const hoverClass =
-    item.isFile && !isMobile.value
-      ? 'hover:scale-105 hover:-translate-y-0.5 transform transition-all duration-300 ease-out hover:font-medium origin-left'
-      : ''
+  const hoverClass = item.isFile && !isMobile.value ? 'group' : ''
   return (
-    <div class={`flex items-center gap-3 ${hoverClass}`}>
-      <span {...elementProps}>{item.label}</span>
-
-      {item.isFile && item.size && showFileSize.value && (
-        <NTag size="small" type="info" class="whitespace-nowrap">
-          {formatFileSize(item.size)}
-        </NTag>
-      )}
+    <div class={`${hoverClass}`}>
+      <div class="flex items-center gap-3 group-hover:scale-105 group-hover:-translate-y-0.5 transform transition-all duration-300 ease-out group-hover:font-medium origin-left">
+        <span {...elementProps}>{item.label}</span>
+        {item.isFile && item.size && showFileSize.value && (
+          <NTag size="small" type="info" class="whitespace-nowrap">
+            {formatFileSize(item.size)}
+          </NTag>
+        )}
+      </div>
     </div>
   )
 }
