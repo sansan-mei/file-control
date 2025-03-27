@@ -1,4 +1,5 @@
 import '#src/api'
+import logger from '#src/middleware/logger'
 import '#src/redis'
 import { renderRoutes } from '#src/utils'
 import cookies from 'cookie-parser'
@@ -29,6 +30,8 @@ app.use(
     immutable: true
   })
 )
+
+app.use(logger)
 app.use(router)
 
 renderRoutes(router)

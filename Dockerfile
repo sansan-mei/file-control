@@ -45,7 +45,8 @@ RUN pnpm install --production && rm -rf /root/.npm /root/.pnpm-store /usr/local/
 COPY --from=frontend /app/dist /app/public
 
 COPY --from=backend /app/build /app/
-CMD ['mkdir', '/app/static']
+
+RUN mkdir /app/static
 
 EXPOSE 3003
 
