@@ -11,7 +11,10 @@ import { nextTick } from 'process'
 /** @其他常量 */
 const uploadList: string[] = []
 
-const pathTo = join(__dirname, process.env.NODE_ENV === 'production' ? './static' : '../static')
+const pathTo = join(
+  process.cwd(),
+  process.env.NODE_ENV === 'production' ? './static' : './src/static'
+)
 
 $api.add([
   // /directory-tree

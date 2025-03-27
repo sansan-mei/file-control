@@ -12,8 +12,8 @@ const storage = multer.diskStorage({
 
     const formattedDate = `${year}-${month}-${day}`
     const path = resolve(
-      __dirname,
-      process.env.NODE_ENV === 'production' ? './static' : '../static',
+      process.cwd(),
+      process.env.NODE_ENV === 'production' ? './static' : './src/static',
       formattedDate
     )
     !existsSync(path) && mkdirSync(path)

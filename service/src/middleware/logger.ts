@@ -6,6 +6,8 @@ const logger = (req: Request, res: Response, next: NextFunction) => {
   console.log('Headers:', req.headers)
   console.log('Query:', req.query)
   console.log('Body:', req.body)
+  console.log('-------------------')
+  console.log('-------------------')
   console.log('-------------------\n')
 
   next()
