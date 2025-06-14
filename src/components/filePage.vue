@@ -31,7 +31,7 @@ import {
   useMessage
 } from 'naive-ui'
 import type { TreeOptions } from 'naive-ui/es/tree/src/interface'
-import { onBeforeMount, ref, watch } from 'vue'
+import { onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const msg = useMessage()
 const fileList = ref<TreeOptions>([])
@@ -90,7 +90,79 @@ const nodeProps = ({ option }: { option: TreeOption & { raw: AnyObject } }) => {
     }
   }
 }
+
+// 处理剪切板图片粘贴上传
+const handlePasteUpload = async (file: File) => {
+  try {
+    loading.start()
+    await fetchDirectorySize(file.size / 1024 / 1024)
+    const body = new FormData()
+    body.append('file', file)
+
+    setCookieValue(isPublic_K, switchMode.value ? '0' : '1')
+
+    const res = await uploadFile(body)
+    if (res) {
+      msg.success(`图片 ${file.name} 上传成功`)
+      if (timer) {
+        clearTimeout(timer)
+        timer = null
+        timer = setTimeout(() => {
+          createData()
+          loading.finish()
+        }, 500)
+      } else {
+        timer = setTimeout(() => {
+          createData()
+          loading.finish()
+        }, 500)
+      }
+    }
+  } catch (error: any) {
+    console.warn(error)
+    msg.error(error?.message || '粘贴上传失败')
+    loading.error()
+  }
+}
+
+// 监听剪切板粘贴事件
+const handlePaste = async (e: ClipboardEvent) => {
+  const items = e.clipboardData?.items
+  if (!items) return
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    
+    // 检查是否为图片类型
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+      if (file) {
+        // 生成文件名
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        const extension = item.type.split('/')[1] || 'png'
+        const fileName = `paste-${timestamp}.${extension}`
+        
+        // 创建新的File对象with proper name
+        const namedFile = new File([file], fileName, { type: file.type })
+        
+        await handlePasteUpload(namedFile)
+        break // 只处理第一个图片
+      }
+    }
+  }
+}
+
 onBeforeMount(createData)
+
+onMounted(() => {
+  // 添加全局粘贴事件监听
+  document.addEventListener('paste', handlePaste)
+})
+
+onUnmounted(() => {
+  // 清理事件监听器
+  document.removeEventListener('paste', handlePaste)
+})
 
 async function createData() {
   try {
