@@ -1,7 +1,7 @@
 # build front-end
 FROM node:lts-alpine as frontend
 
-RUN npm install pnpm -g
+RUN npm install -g pnpm@9
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN pnpm build
 # build backend
 FROM node:lts-alpine as backend
 
-RUN npm install pnpm -g
+RUN npm install -g pnpm@9
 
 WORKDIR /app
 
@@ -32,7 +32,7 @@ RUN pnpm build
 
 FROM node:lts-alpine
 
-RUN npm install pnpm -g
+RUN npm install -g pnpm@9
 
 WORKDIR /app
 
