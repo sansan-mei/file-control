@@ -42,6 +42,21 @@ export function deleteFile<T>(hash: string) {
   })
 }
 
+// 批量删除文件
+export function deleteFiles<T>(hashes: Array<string | number>) {
+  return Delete<T>({
+    url: '/delete-files',
+    data: { hashes: hashes.join(',') },
+  })
+}
+
+// 查询管理员状态
+export function fetchAdminStatus<T>() {
+  return get<T>({
+    url: '/admin-status',
+  })
+}
+
 // 获取目录结构
 export function fetchDirectoryTree<T>() {
   return get<T>({

@@ -1,5 +1,12 @@
 <script lang="tsx" setup>
-import { deleteFile, fetchDirectorySize, fetchDirectoryTree, uploadFile } from '@/api'
+import {
+  deleteFile,
+  deleteFiles,
+  fetchAdminStatus,
+  fetchDirectorySize,
+  fetchDirectoryTree,
+  uploadFile
+} from '@/api'
 import { filePwd_K, isPublic_K, showFileSize_K } from '@/constant'
 import { useIsMobile } from '@/hoooks'
 import { copyToClip, formatFileSize, getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
@@ -38,6 +45,8 @@ const fileList = ref<TreeOptions>([])
 const valueMap = new Map<TreeOption['key'], boolean>()
 let timer: any
 const defaultExpandedKeys = ref<AnyArray>([])
+const checkedKeys = ref<Array<string | number>>([])
+const checkedFileKeys = ref<Array<string | number>>([])
 const pattern = ref('')
 const isSetting = ref(false)
 const isActive = ref(false)
@@ -47,6 +56,7 @@ const filePwd = ref(getCookieValue(filePwd_K))
 const loading = useLoadingBar()
 const showFileSize = ref(getCookieValue(showFileSize_K) === '1')
 const isMobile = useIsMobile()
+const isAdmin = ref(false)
 
 const updatePrefixWithExpaned = (
   _keys: Array<string | number>,
@@ -95,9 +105,10 @@ const nodeProps = ({ option }: { option: TreeOption & { raw: AnyObject } }) => {
 const handlePasteUpload = async (file: File) => {
   try {
     loading.start()
-    await fetchDirectorySize(file.size / 1024 / 1024)
+    const checkResult = await fetchDirectorySize<{ uploadToken: string | null }>(file.size)
     const body = new FormData()
     body.append('file', file)
+    if (checkResult.data?.uploadToken) body.append('uploadToken', checkResult.data.uploadToken)
 
     setCookieValue(isPublic_K, switchMode.value ? '0' : '1')
 
@@ -152,7 +163,9 @@ const handlePaste = async (e: ClipboardEvent) => {
   }
 }
 
-onBeforeMount(createData)
+onBeforeMount(() => {
+  Promise.all([fetchAdminState(), createData()])
+})
 
 onMounted(() => {
   // 添加全局粘贴事件监听
@@ -176,6 +189,20 @@ async function createData() {
     }
   } catch (error) {
     console.warn(error)
+  }
+}
+
+async function fetchAdminState() {
+  try {
+    const { data } = await fetchAdminStatus<{ isAdmin: boolean }>()
+    isAdmin.value = !!data?.isAdmin
+    if (!isAdmin.value) {
+      checkedKeys.value = []
+      checkedFileKeys.value = []
+    }
+  } catch (error) {
+    console.warn(error)
+    isAdmin.value = false
   }
 }
 
@@ -205,6 +232,46 @@ const handleDeleteFile = async (key: string) => {
     createData()
   } catch (res: any) {
     msg.error(res?.message || '删除失败')
+  }
+}
+
+const collectCheckedFileKeys = (
+  list: TreeOptions,
+  checkedKeySet: Set<string | number>,
+  parentChecked = false
+) => {
+  const keys: Array<string | number> = []
+
+  list.forEach((item) => {
+    const option = item as TreeOption & { raw?: DirectoryNode; children?: TreeOptions }
+    const key = option.key
+    const isChecked = (key !== undefined && checkedKeySet.has(key)) || parentChecked
+    if (isChecked && option.raw?.isFile && key !== undefined) keys.push(key)
+    if (option.children?.length) {
+      keys.push(...collectCheckedFileKeys(option.children, checkedKeySet, isChecked))
+    }
+  })
+
+  return keys
+}
+
+const handleCheckedKeysUpdate = (keys: Array<string | number>) => {
+  checkedKeys.value = keys
+  checkedFileKeys.value = collectCheckedFileKeys(fileList.value, new Set(keys))
+}
+
+const handleBatchDelete = async () => {
+  if (!checkedFileKeys.value.length) return
+  if (!window.confirm(`确认删除选中的 ${checkedFileKeys.value.length} 个文件？`)) return
+
+  try {
+    await deleteFiles(checkedFileKeys.value)
+    msg.success('批量删除成功')
+    checkedKeys.value = []
+    checkedFileKeys.value = []
+    createData()
+  } catch (res: any) {
+    msg.error(res?.message || '批量删除失败')
   }
 }
 
@@ -255,9 +322,10 @@ const beforeUpload: (options: {
   try {
     loading.start()
     const file = options.file.file!
-    await fetchDirectorySize(file.size / 1024 / 1024)
+    const checkResult = await fetchDirectorySize<{ uploadToken: string | null }>(file.size)
     const body = new FormData()
     body.append('file', file)
+    if (checkResult.data?.uploadToken) body.append('uploadToken', checkResult.data.uploadToken)
 
     setCookieValue(isPublic_K, switchMode.value ? '0' : '1')
 
@@ -312,7 +380,7 @@ watch(showFileSize, (val) => {
 <template>
   <NLayout class="z-40 transition min-h-screen" has-sider>
     <NLayoutContent class="h-full py-8">
-      <div class="grid gap-4 md:grid-cols-[repeat(2,6.25rem)_6.25rem] grid-cols-3 ml-2 max-w-[95%]">
+      <div class="grid gap-4 md:grid-cols-[repeat(4,6.25rem)] grid-cols-2 ml-2 max-w-[95%]">
         <NButton type="primary" @click="createData" class="md:w-auto w-full"> 刷新数据 </NButton>
         <NUpload
           directory-dnd
@@ -345,6 +413,16 @@ watch(showFileSize, (val) => {
           </template>
           {{ !isSetting ? '设置' : '设置中' }}
         </NButton>
+        <NButton
+          v-if="isAdmin"
+          secondary
+          type="error"
+          :disabled="!checkedFileKeys.length"
+          @click="handleBatchDelete"
+          class="md:w-auto w-full"
+        >
+          批量删除{{ checkedFileKeys.length ? `(${checkedFileKeys.length})` : '' }}
+        </NButton>
       </div>
       <div class="grid gap-y-2 mt-4">
         <NInput v-model:value="pattern" placeholder="搜索" style="width: 96%; margin-left: 2%" />
@@ -353,9 +431,12 @@ watch(showFileSize, (val) => {
             block-line
             :pattern="pattern"
             expand-on-click
+            :checkable="isAdmin"
             :data="fileList"
             :node-props="nodeProps"
             :on-update:expanded-keys="updatePrefixWithExpaned"
+            :checked-keys="checkedKeys"
+            :on-update:checked-keys="handleCheckedKeysUpdate"
             :default-expanded-keys="defaultExpandedKeys"
             :filter="onFilter"
             virtual-scroll

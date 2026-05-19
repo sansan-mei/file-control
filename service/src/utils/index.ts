@@ -126,7 +126,7 @@ export function getFolderSize(folderPath: string) {
     else if (stats.isDirectory()) totalSize += getFolderSize(filePath)
   })
 
-  return totalSize / 1024
+  return totalSize
 }
 
 class ApiConfig {
