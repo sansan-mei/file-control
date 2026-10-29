@@ -71,9 +71,10 @@ describe('file manager shell', () => {
     expect(wrapper.find('h1').text()).toBe('我的文件')
     expect(wrapper.find('header').findComponent(NInput).attributes('aria-label')).toBe('搜索文件或文件夹')
     expect(wrapper.find('.upload-panel').exists()).toBe(false)
-    expect(wrapper.find('nav[aria-label="主导航"]').exists()).toBe(true)
+    expect(wrapper.find('aside').exists()).toBe(false)
+    expect(wrapper.find('.file-toolbar-actions .settings-button').exists()).toBe(true)
     expect(wrapper.find('main').classes()).toContain('workspace-main')
-    expect(wrapper.find('.workspace-sidebar').exists()).toBe(true)
+    expect(wrapper.find('.workspace-sidebar').exists()).toBe(false)
     expect(wrapper.find('section[aria-label="文件列表"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('暂无文件')
     const refresh = wrapper.findAllComponents(NButton).find(button => button.text().includes('刷新'))!
@@ -83,10 +84,11 @@ describe('file manager shell', () => {
     wrapper.unmount()
   })
 
-  it('opens the settings drawer from the responsive navigation', async () => {
+  it('opens the settings drawer from the top-right toolbar', async () => {
     vi.stubGlobal('requestIdleCallback', (callback: () => void) => { callback(); return 1 })
     const wrapper = setup()
-    await wrapper.find('nav button').trigger('click')
+    wrapper.findAllComponents(NButton).find(button => button.classes().includes('settings-button'))!.vm.$emit('click')
+    await flushPromises()
     expect(wrapper.findComponent(NDrawer).props('show')).toBe(true)
     expect(wrapper.findComponent(NDrawer).classes()).toContain('settings-drawer')
   })

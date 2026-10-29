@@ -14,8 +14,7 @@ import {
   FileTrayFullOutline,
   Folder,
   FolderOpenOutline,
-  SearchOutline,
-  SettingsOutline
+  SearchOutline
 } from '@vicons/ionicons5'
 import type { TreeOption, UploadFileInfo } from 'naive-ui'
 import {
@@ -367,12 +366,6 @@ watch(showFileSize, (val) => {
       </NInput>
     </header>
     <div class="workspace-body">
-      <aside class="workspace-sidebar">
-        <nav aria-label="主导航">
-          <a href="#files" class="nav-item nav-item-active" aria-current="page"><NIcon :size="21"><FolderOpenOutline /></NIcon>全部文件</a>
-          <button type="button" class="nav-item" @click="changeMode"><NIcon :size="21"><SettingsOutline /></NIcon>设置</button>
-        </nav>
-      </aside>
       <main class="workspace-main" id="files">
         <section class="file-panel" aria-label="文件列表">
           <div class="page-heading">
@@ -380,6 +373,7 @@ watch(showFileSize, (val) => {
             <div class="file-toolbar-actions">
               <NButton v-if="isAdmin" secondary type="error" :disabled="!checkedFileKeys.length" @click="handleBatchDelete">批量删除{{ checkedFileKeys.length ? `(${checkedFileKeys.length})` : '' }}</NButton>
               <NButton quaternary class="refresh-button" @click="createData" aria-label="刷新文件">刷新</NButton>
+              <NButton quaternary class="settings-button" @click="changeMode" aria-label="空间设置">设置</NButton>
             </div>
           </div>
           <div class="workspace-status"><span>{{ switchMode ? '密码保护上传' : '公开上传' }}</span><span v-if="isAdmin">管理员</span></div>
