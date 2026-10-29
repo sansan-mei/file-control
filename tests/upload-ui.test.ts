@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { shallowMount, flushPromises } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { shallowMount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import FilePage from '../src/components/filePage.vue'
-import { NUpload } from 'naive-ui'
+import { NButton, NDrawer, NInput, NTree, NUpload } from 'naive-ui'
 import { uploadFile, fetchDirectorySize, fetchDirectoryTree } from '../src/api'
 
 vi.mock('../src/api', () => ({ uploadFile: vi.fn(), fetchDirectorySize: vi.fn(), fetchDirectoryTree: vi.fn(), fetchAdminStatus: vi.fn(async () => ({ data: { isAdmin: false } })), deleteFile: vi.fn(), deleteFiles: vi.fn() }))
@@ -13,12 +13,57 @@ beforeEach(() => {
   vi.mocked(fetchDirectoryTree).mockResolvedValue({ status: 'Success', data: { children: [] } } as never)
 })
 
+afterEach(() => vi.unstubAllGlobals())
+enableAutoUnmount(afterEach)
 function setup() { return shallowMount(FilePage, { global: { renderStubDefaultSlot: true } }) }
 function pick(wrapper: ReturnType<typeof setup>, name = 'a.txt') {
   const file = new File(['hello'], name)
   const hook = wrapper.findComponent(NUpload).props('onBeforeUpload')
   return hook({ file: { id: name, file }, fileList: [] })
 }
+
+describe('file manager shell', () => {
+  it('keeps the upload picker keyboard accessible with a native button', () => {
+    const wrapper = setup()
+    expect(wrapper.find('button.upload-cta').exists()).toBe(true)
+    expect(wrapper.find('button.upload-cta').attributes('type')).toBe('button')
+  })
+  it('exposes Chinese landmarks, responsive navigation, and the refresh action', async () => {
+    const wrapper = setup()
+    await flushPromises()
+    expect(wrapper.find('header').text()).toContain('文件空间')
+    expect(wrapper.find('nav[aria-label="主导航"]').exists()).toBe(true)
+    expect(wrapper.find('main').classes()).toContain('workspace-main')
+    expect(wrapper.find('.workspace-sidebar').exists()).toBe(true)
+    expect(wrapper.find('section[aria-label="文件列表"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('暂无文件')
+    const refresh = wrapper.findAllComponents(NButton).find(button => button.text().includes('刷新'))!
+    refresh.vm.$emit('click')
+    await flushPromises()
+    expect(fetchDirectoryTree).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('opens the settings drawer from the responsive navigation', async () => {
+    vi.stubGlobal('requestIdleCallback', (callback: () => void) => { callback(); return 1 })
+    const wrapper = setup()
+    await wrapper.find('nav button').trigger('click')
+    expect(wrapper.findComponent(NDrawer).props('show')).toBe(true)
+    expect(wrapper.findComponent(NDrawer).classes()).toContain('settings-drawer')
+  })
+
+  it('keeps search wired to the file tree and guest batch actions hidden', async () => {
+    vi.mocked(fetchDirectoryTree).mockResolvedValue({ data: { children: [{ key: 'doc', label: '文档.txt', isFile: true }] } } as never)
+    const wrapper = setup()
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('批量删除')
+    const search = wrapper.findAllComponents(NInput).find(input => input.attributes('aria-label') === '搜索文件或文件夹')!
+    search.vm.$emit('update:value', '文档')
+    await flushPromises()
+    expect(wrapper.findComponent(NTree).props('pattern')).toBe('文档')
+    expect(wrapper.findComponent(NTree).props('checkable')).toBe(false)
+  })
+})
 
  describe('upload UI', () => {
   it('shows byte progress, waits for the server at 100%, then refreshes without timers', async () => {

@@ -14,20 +14,17 @@ import {
   FileTrayFullOutline,
   Folder,
   FolderOpenOutline,
-  Settings,
   SettingsOutline
 } from '@vicons/ionicons5'
 import type { TreeOption, UploadFileInfo } from 'naive-ui'
 import {
   NButton,
-  NCard,
   NDrawer,
+  NDrawerContent,
   NForm,
   NFormItem,
   NIcon,
   NInput,
-  NLayout,
-  NLayoutContent,
   NScrollbar,
   NSwitch,
   NTag,
@@ -47,7 +44,6 @@ const defaultExpandedKeys = ref<AnyArray>([])
 const checkedKeys = ref<Array<string | number>>([])
 const checkedFileKeys = ref<Array<string | number>>([])
 const pattern = ref('')
-const isSetting = ref(false)
 const isActive = ref(false)
 const switchMode = ref((getCookieValue(filePwd_K) && getCookieValue(isPublic_K) !== '1') || false)
 const formDisabled = ref(true)
@@ -84,14 +80,14 @@ const updatePrefixWithExpaned = (
   }
 }
 
-const nodeProps = ({ option }: { option: TreeOption & { raw: AnyObject } }) => {
+const nodeProps = ({ option }: { option: TreeOption }) => {
   return {
     async onClick() {
       if (!option.children && !option.disabled) {
         if (valueMap.has(option.key)) return
         valueMap.set(option.key, true)
         requestIdleCallback(() => {
-          const win = openUrlByKey({ key: option.key, label: option.raw.label })
+          const win = openUrlByKey({ key: option.key, label: (option.raw as DirectoryNode).label })
           win?.addEventListener('load', () => valueMap.delete(option.key))
           setTimeout(() => valueMap.delete(option.key), 2000)
         })
@@ -292,7 +288,7 @@ const renderLabel = (item: DirectoryNode) => {
   const hoverClass = item.isFile && !isMobile.value ? 'group' : ''
   return (
     <div class={`${hoverClass}`}>
-      <div class="flex items-center gap-3 group-hover:scale-105 group-hover:-translate-y-0.5 transform transition-all duration-300 ease-out group-hover:font-medium origin-left">
+      <div class="file-label flex items-center gap-3">
         <span {...elementProps}>{item.label}</span>
         {item.isFile && item.size && showFileSize.value && (
           <NTag size="small" type="info" class="whitespace-nowrap">
@@ -339,7 +335,6 @@ const onFilter = (val: string, node: AnyObject) => {
 }
 
 watch(isActive, (val) => {
-  isSetting.value = val
   requestIdleCallback(() => (formDisabled.value = !val))
 })
 watch(filePwd, (val) => {
@@ -356,111 +351,94 @@ watch(showFileSize, (val) => {
 </script>
 
 <template>
-  <NLayout class="z-40 transition min-h-screen" has-sider>
-    <NLayoutContent class="h-full py-8">
-      <div class="grid gap-4 md:grid-cols-[repeat(4,6.25rem)] grid-cols-2 ml-2 max-w-[95%]">
-        <NButton type="primary" @click="createData" class="md:w-auto w-full"> 刷新数据 </NButton>
-        <NUpload
-          directory-dnd
-          class="md:w-auto w-full"
-          :action="undefined"
-          multiple
-          :show-file-list="false"
-          with-credentials
-          :default-upload="false"
-          :on-before-upload="beforeUpload"
-        >
-          <NUploadDragger
-            style="padding: 0; border: 0; background-color: white"
-            class="md:w-auto w-full"
-          >
-            <NButton class="md:w-auto w-full">上传文件</NButton>
-          </NUploadDragger>
-        </NUpload>
-        <NButton
-          secondary
-          :type="isSetting ? 'success' : 'tertiary'"
-          @click="changeMode"
-          class="md:w-auto w-full"
-        >
-          <template #icon>
-            <NIcon>
-              <Settings v-if="isSetting" />
-              <SettingsOutline v-else />
-            </NIcon>
-          </template>
-          {{ !isSetting ? '设置' : '设置中' }}
-        </NButton>
-        <NButton
-          v-if="isAdmin"
-          secondary
-          type="error"
-          :disabled="!checkedFileKeys.length"
-          @click="handleBatchDelete"
-          class="md:w-auto w-full"
-        >
-          批量删除{{ checkedFileKeys.length ? `(${checkedFileKeys.length})` : '' }}
+  <div class="workspace-shell">
+    <header class="app-header">
+      <a class="brand" href="#" aria-label="文件空间首页">
+        <span class="brand-mark"><NIcon :size="22"><FolderOpenOutline /></NIcon></span>
+        <span>文件空间<span class="brand-caption">简单存储 · 随时分享</span></span>
+      </a>
+      <div class="header-actions">
+        <span class="access-badge">{{ isAdmin ? '管理员' : '访客空间' }}</span>
+        <NButton quaternary @click="changeMode" aria-label="打开设置">
+          <template #icon><NIcon><SettingsOutline /></NIcon></template>
+          设置
         </NButton>
       </div>
-      <section v-if="uploads.length" aria-label="上传进度" class="mx-4 mt-4 grid gap-3">
-        <div v-for="upload in uploads" :key="upload.id" class="upload-entry">
-          <div class="break-all">{{ upload.name }}</div>
-          <progress
-            v-if="upload.phase !== 'success' && upload.phase !== 'error'"
-            :aria-label="upload.name"
-            :value="upload.phase === 'processing' ? undefined : upload.percent"
-            max="100"
-            class="w-full"
-          />
-          <div role="status">
-            <span v-if="upload.phase === 'checking'">检查上传权限…</span>
-            <span v-else-if="upload.phase === 'processing'">100% 已发送，服务器处理中…</span>
-            <span v-else-if="upload.phase === 'success'">上传成功</span>
-            <span v-else-if="upload.phase === 'error'" role="alert">上传失败：{{ upload.error }}</span>
-            <span v-else>{{ upload.percent === undefined ? '上传中（总大小未知）' : `${upload.percent}%` }} · {{ formatFileSize(upload.loaded) }}<template v-if="upload.total"> / {{ formatFileSize(upload.total) }}</template></span>
-          </div>
+    </header>
+    <div class="workspace-body">
+      <aside class="workspace-sidebar">
+        <div class="sidebar-label">工作空间</div>
+        <nav aria-label="主导航">
+          <a href="#files" class="nav-item nav-item-active" aria-current="page"><NIcon :size="19"><FolderOpenOutline /></NIcon>全部文件</a>
+          <button class="nav-item" @click="changeMode"><NIcon :size="19"><SettingsOutline /></NIcon>空间设置</button>
+        </nav>
+        <div class="sidebar-note"><NIcon :size="22"><FileTrayFullOutline /></NIcon><strong>让文件井然有序</strong><p>上传、查找与分享，<br />在一个空间轻松完成。</p></div>
+        <div class="sidebar-footer">文件空间 <span>·</span> 轻量文件管理</div>
+      </aside>
+      <main class="workspace-main" id="files">
+        <div class="page-heading">
+          <div><div class="eyebrow">我的工作空间</div><h1>全部文件</h1><p>管理你的文件，让每一次分享更简单。</p></div>
+          <NButton class="refresh-button" @click="createData">刷新数据</NButton>
         </div>
-      </section>
-      <div class="grid gap-y-2 mt-4">
-        <NInput v-model:value="pattern" placeholder="搜索" style="width: 96%; margin-left: 2%" />
-        <NScrollbar x-scrollable y-scrollable>
-          <NTree
-            block-line
-            :pattern="pattern"
-            expand-on-click
-            :checkable="isAdmin"
-            :data="fileList"
-            :node-props="nodeProps"
-            :on-update:expanded-keys="updatePrefixWithExpaned"
-            :checked-keys="checkedKeys"
-            :on-update:checked-keys="handleCheckedKeysUpdate"
-            :default-expanded-keys="defaultExpandedKeys"
-            :filter="onFilter"
-            virtual-scroll
-          />
-        </NScrollbar>
-      </div>
-      <NDrawer v-model:show="isActive" default-width="31rem" class="max-w-[70%] p-4">
-        <NCard>
-          <NForm :disabled="formDisabled">
-            <NFormItem label="文件密码">
-              <NInput v-model:value="filePwd" placeholder="输入密码" />
-            </NFormItem>
-            <NFormItem label="携带文件密码（只有输入相同密码才能查看该文件)">
-              <NSwitch v-model:value="switchMode" :disabled="!filePwd" :round="false">
-                <template #checked> 已开启 </template>
-                <template #unchecked> 已关闭 </template>
-              </NSwitch>
-            </NFormItem>
-            <NFormItem label="显示文件大小">
-              <NSwitch v-model:value="showFileSize" :round="false">
-                <template #checked> 显示 </template>
-                <template #unchecked> 隐藏 </template>
-              </NSwitch>
-            </NFormItem>
-          </NForm>
-        </NCard>
-      </NDrawer>
-    </NLayoutContent>
-  </NLayout>
+        <section class="upload-panel" aria-label="上传文件">
+          <NUpload directory-dnd :action="undefined" multiple :show-file-list="false" with-credentials :default-upload="false" :on-before-upload="beforeUpload">
+            <NUploadDragger class="upload-dropzone">
+              <div class="upload-prompt">
+                <span class="upload-symbol"><NIcon :size="28"><FileTrayFullOutline /></NIcon></span>
+                <div class="upload-copy"><h2>把文件放在这里</h2><p>拖拽文件到此处，或点击选择文件上传</p><span>支持多文件上传，也可直接粘贴剪贴板图片</span></div>
+                <button type="button" class="upload-cta">＋ 上传文件</button>
+              </div>
+            </NUploadDragger>
+          </NUpload>
+        </section>
+        <section v-if="uploads.length" aria-label="上传进度" class="upload-progress-panel">
+          <div class="section-heading"><h2>传输记录</h2><span>{{ uploads.length }} 个任务</span></div>
+          <div class="upload-grid">
+            <div v-for="upload in uploads" :key="upload.id" class="upload-entry" :class="`upload-${upload.phase}`">
+              <div class="upload-file-name"><NIcon :size="18"><FileTrayFullOutline /></NIcon><strong>{{ upload.name }}</strong></div>
+              <progress v-if="upload.phase !== 'success' && upload.phase !== 'error'" :aria-label="upload.name" :value="upload.phase === 'processing' ? undefined : upload.percent" max="100" />
+              <div role="status" class="upload-status">
+                <span v-if="upload.phase === 'checking'">检查上传权限…</span>
+                <span v-else-if="upload.phase === 'processing'">100% 已发送，服务器处理中…</span>
+                <span v-else-if="upload.phase === 'success'">上传成功</span>
+                <span v-else-if="upload.phase === 'error'" role="alert">上传失败：{{ upload.error }}</span>
+                <span v-else>{{ upload.percent === undefined ? '上传中（总大小未知）' : `${upload.percent}%` }} · {{ formatFileSize(upload.loaded) }}<template v-if="upload.total"> / {{ formatFileSize(upload.total) }}</template></span>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="file-panel" aria-label="文件列表">
+          <div class="file-toolbar">
+            <div class="file-panel-title"><NIcon :size="20"><FolderOpenOutline /></NIcon><h2>文件目录</h2></div>
+            <div class="file-toolbar-actions">
+              <NInput v-model:value="pattern" clearable placeholder="搜索文件或文件夹" aria-label="搜索文件或文件夹" class="file-search" />
+              <NButton v-if="isAdmin" secondary type="error" :disabled="!checkedFileKeys.length" @click="handleBatchDelete">批量删除{{ checkedFileKeys.length ? `(${checkedFileKeys.length})` : '' }}</NButton>
+            </div>
+          </div>
+          <div class="file-list-caption"><span>名称</span><span>{{ isAdmin ? '选择文件以批量管理' : '点击文件打开 · 右键复制链接' }}</span></div>
+          <NScrollbar x-scrollable y-scrollable class="file-scrollbar">
+            <NTree v-if="fileList.length" class="file-tree" block-line :pattern="pattern" expand-on-click :checkable="isAdmin" :data="fileList" :node-props="nodeProps" :on-update:expanded-keys="updatePrefixWithExpaned" :checked-keys="checkedKeys" :on-update:checked-keys="handleCheckedKeysUpdate" :default-expanded-keys="defaultExpandedKeys" :filter="onFilter" virtual-scroll />
+            <div v-else class="empty-state"><span class="empty-icon"><NIcon :size="36"><FolderOpenOutline /></NIcon></span><h3>暂无文件</h3><p>上传第一个文件，开启你的文件空间。</p></div>
+          </NScrollbar>
+          <div class="file-panel-footer"><span>{{ switchMode ? '已开启文件密码保护' : '当前上传模式：公开文件' }}</span><button @click="changeMode">管理偏好设置 →</button></div>
+        </section>
+        <footer class="workspace-footer">支持拖拽上传与图片粘贴<span>你的文件，触手可及。</span></footer>
+      </main>
+    </div>
+    <NDrawer v-model:show="isActive" :width="440" class="settings-drawer" aria-label="空间设置">
+      <NDrawerContent title="空间设置" closable>
+        <p class="settings-intro">调整访问密码与文件显示偏好，设置将自动保存到当前浏览器。</p>
+        <NForm :disabled="formDisabled" label-placement="top">
+          <div class="settings-section-title">访问与隐私</div>
+          <NFormItem label="文件密码"><NInput v-model:value="filePwd" aria-label="文件密码" type="password" show-password-on="click" placeholder="输入文件访问密码" /></NFormItem>
+          <NFormItem label="携带文件密码">
+            <div class="setting-row"><p>开启后，只有输入相同密码才能查看上传的文件。</p><NSwitch v-model:value="switchMode" aria-label="携带文件密码" :disabled="!filePwd"><template #checked>开启</template><template #unchecked>关闭</template></NSwitch></div>
+          </NFormItem>
+          <div class="settings-section-title">显示偏好</div>
+          <NFormItem label="显示文件大小"><div class="setting-row"><p>在文件名称旁显示文件大小。</p><NSwitch v-model:value="showFileSize" aria-label="显示文件大小"><template #checked>显示</template><template #unchecked>隐藏</template></NSwitch></div></NFormItem>
+        </NForm>
+        <template #footer><NButton @click="isActive = false" type="primary" block>完成设置</NButton></template>
+      </NDrawerContent>
+    </NDrawer>
+  </div>
 </template>
