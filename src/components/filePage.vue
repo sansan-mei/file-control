@@ -34,7 +34,6 @@ import {
   NTree,
   NUpload,
   NUploadDragger,
-  useLoadingBar,
   useMessage
 } from 'naive-ui'
 import type { TreeOptions } from 'naive-ui/es/tree/src/interface'
@@ -43,7 +42,7 @@ import { onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue'
 const msg = useMessage()
 const fileList = ref<TreeOptions>([])
 const valueMap = new Map<TreeOption['key'], boolean>()
-let timer: any
+
 const defaultExpandedKeys = ref<AnyArray>([])
 const checkedKeys = ref<Array<string | number>>([])
 const checkedFileKeys = ref<Array<string | number>>([])
@@ -53,7 +52,7 @@ const isActive = ref(false)
 const switchMode = ref((getCookieValue(filePwd_K) && getCookieValue(isPublic_K) !== '1') || false)
 const formDisabled = ref(true)
 const filePwd = ref(getCookieValue(filePwd_K))
-const loading = useLoadingBar()
+
 const showFileSize = ref(getCookieValue(showFileSize_K) === '1')
 const isMobile = useIsMobile()
 const isAdmin = ref(false)
@@ -101,40 +100,47 @@ const nodeProps = ({ option }: { option: TreeOption & { raw: AnyObject } }) => {
   }
 }
 
-// 处理剪切板图片粘贴上传
-const handlePasteUpload = async (file: File) => {
+interface UploadState {
+  id: number
+  name: string
+  phase: 'checking' | 'uploading' | 'processing' | 'success' | 'error'
+  loaded: number
+  total?: number
+  percent?: number
+  error?: string
+}
+const uploads = ref<UploadState[]>([])
+let nextUploadId = 0
+
+// A separate state entry belongs to each request, never to the shared loading bar.
+const runUpload = async (file: File) => {
+  const state = ref<UploadState>({ id: ++nextUploadId, name: file.name, phase: 'checking', loaded: 0 })
+  uploads.value.push(state.value)
   try {
-    loading.start()
     const checkResult = await fetchDirectorySize<{ uploadToken: string | null }>(file.size)
     const body = new FormData()
     body.append('file', file)
     if (checkResult.data?.uploadToken) body.append('uploadToken', checkResult.data.uploadToken)
-
     setCookieValue(isPublic_K, switchMode.value ? '0' : '1')
-
-    const res = await uploadFile(body)
-    if (res) {
-      msg.success(`图片 ${file.name} 上传成功`)
-      if (timer) {
-        clearTimeout(timer)
-        timer = null
-        timer = setTimeout(() => {
-          createData()
-          loading.finish()
-        }, 500)
-      } else {
-        timer = setTimeout(() => {
-          createData()
-          loading.finish()
-        }, 500)
-      }
-    }
+    state.value.phase = 'uploading'
+    await uploadFile(body, (event) => {
+      state.value.loaded = event.loaded
+      const total = event.lengthComputable !== false && event.total && event.total > 0 ? event.total : undefined
+      state.value.total = total
+      state.value.percent = total ? Math.min(100, Math.floor(event.loaded / total * 100)) : undefined
+      state.value.phase = total && event.loaded >= total ? 'processing' : 'uploading'
+    })
+    state.value.phase = 'success'
+    msg.success(`文件 ${file.name} 上传成功`)
+    await createData()
   } catch (error: any) {
-    console.warn(error)
-    msg.error(error?.message || '粘贴上传失败')
-    loading.error()
+    state.value.phase = 'error'
+    state.value.error = error?.message || '上传失败'
+    msg.error(state.value.error!)
   }
 }
+
+const handlePasteUpload = runUpload
 
 // 监听剪切板粘贴事件
 const handlePaste = async (e: ClipboardEvent) => {
@@ -156,8 +162,7 @@ const handlePaste = async (e: ClipboardEvent) => {
         // 创建新的File对象with proper name
         const namedFile = new File([file], fileName, { type: file.type })
         
-        await handlePasteUpload(namedFile)
-        break // 只处理第一个图片
+        void handlePasteUpload(namedFile)
       }
     }
   }
@@ -318,37 +323,10 @@ const beforeUpload: (options: {
   file: UploadFileInfo
   fileList: UploadFileInfo[]
 }) => Promise<boolean> = async (options) => {
-  let res
-  try {
-    loading.start()
-    const file = options.file.file!
-    const checkResult = await fetchDirectorySize<{ uploadToken: string | null }>(file.size)
-    const body = new FormData()
-    body.append('file', file)
-    if (checkResult.data?.uploadToken) body.append('uploadToken', checkResult.data.uploadToken)
-
-    setCookieValue(isPublic_K, switchMode.value ? '0' : '1')
-
-    res = await uploadFile(body)
-    if (timer) {
-      clearTimeout(timer)
-      timer = null
-      timer = setTimeout(() => {
-        createData()
-        loading.finish()
-      }, 500)
-    } else {
-      timer = setTimeout(() => {
-        createData()
-        loading.finish()
-      }, 500)
-    }
-  } catch (error: any) {
-    console.warn(error)
-    msg.error(error?.message || '上传失败')
-  } finally {
-    return !!res
-  }
+  const file = options.file.file
+  if (file) await runUpload(file)
+  // Upload is fully handled here; do not retain a hidden Naive UI queue.
+  return false
 }
 
 const changeMode = () => {
@@ -424,6 +402,25 @@ watch(showFileSize, (val) => {
           批量删除{{ checkedFileKeys.length ? `(${checkedFileKeys.length})` : '' }}
         </NButton>
       </div>
+      <section v-if="uploads.length" aria-label="上传进度" class="mx-4 mt-4 grid gap-3">
+        <div v-for="upload in uploads" :key="upload.id" class="upload-entry">
+          <div class="break-all">{{ upload.name }}</div>
+          <progress
+            v-if="upload.phase !== 'success' && upload.phase !== 'error'"
+            :aria-label="upload.name"
+            :value="upload.phase === 'processing' ? undefined : upload.percent"
+            max="100"
+            class="w-full"
+          />
+          <div role="status">
+            <span v-if="upload.phase === 'checking'">检查上传权限…</span>
+            <span v-else-if="upload.phase === 'processing'">100% 已发送，服务器处理中…</span>
+            <span v-else-if="upload.phase === 'success'">上传成功</span>
+            <span v-else-if="upload.phase === 'error'" role="alert">上传失败：{{ upload.error }}</span>
+            <span v-else>{{ upload.percent === undefined ? '上传中（总大小未知）' : `${upload.percent}%` }} · {{ formatFileSize(upload.loaded) }}<template v-if="upload.total"> / {{ formatFileSize(upload.total) }}</template></span>
+          </div>
+        </div>
+      </section>
       <div class="grid gap-y-2 mt-4">
         <NInput v-model:value="pattern" placeholder="搜索" style="width: 96%; margin-left: 2%" />
         <NScrollbar x-scrollable y-scrollable>

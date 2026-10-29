@@ -1,4 +1,7 @@
-import { initAxios, Delete, get, post } from 'mei-utils/client-http'
+import { initAxios, Delete, get } from 'mei-utils/client-http'
+// mei-utils may bundle an older Axios whose normalized event has no lengthComputable.
+export interface UploadProgressEvent { loaded: number; total?: number; lengthComputable?: boolean }
+import type { MyResponse } from 'mei-utils/type'
 
 const request = initAxios({
   baseURL: import.meta.env.VITE_GLOB_API_URL,
@@ -27,11 +30,16 @@ export function fetchDirectorySize<T>(size: number) {
 }
 
 // 上传文件
-export function uploadFile<T>(data: FormData) {
-  return post<T>({
-    url: '/upload-file',
-    data,
-  })
+export function uploadFile<T>(data: FormData, onUploadProgress?: (event: UploadProgressEvent) => void): Promise<MyResponse<T>> {
+  // mei-utils' post helper drops onUploadProgress. Keep its shared Axios instance,
+  // response contract and error semantics, but pass the upload callback directly.
+  return request.post<MyResponse<T>>('/upload-file', data, { onUploadProgress }).then(
+    (response) => {
+      if (response.data.status === 'Success' || typeof response.data === 'string') return response.data
+      return Promise.reject(response.data)
+    },
+    (error) => { throw new Error(error?.message || 'Error') }
+  )
 }
 
 // 删除文件
