@@ -14,6 +14,7 @@ import {
   FileTrayFullOutline,
   Folder,
   FolderOpenOutline,
+  SearchOutline,
   SettingsOutline
 } from '@vicons/ionicons5'
 import type { TreeOption, UploadFileInfo } from 'naive-ui'
@@ -134,6 +135,13 @@ const runUpload = async (file: File) => {
     state.value.error = error?.message || '上传失败'
     msg.error(state.value.error!)
   }
+}
+
+const uploadPicker = ref<HTMLInputElement | null>(null)
+const handlePickerChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  for (const file of Array.from(input.files || [])) void runUpload(file)
+  input.value = ''
 }
 
 const handlePasteUpload = runUpload
@@ -353,44 +361,33 @@ watch(showFileSize, (val) => {
 <template>
   <div class="workspace-shell">
     <header class="app-header">
-      <a class="brand" href="#" aria-label="文件空间首页">
-        <span class="brand-mark"><NIcon :size="22"><FolderOpenOutline /></NIcon></span>
-        <span>文件空间<span class="brand-caption">简单存储 · 随时分享</span></span>
-      </a>
-      <div class="header-actions">
-        <span class="access-badge">{{ isAdmin ? '管理员' : '访客空间' }}</span>
-        <NButton quaternary @click="changeMode" aria-label="打开设置">
-          <template #icon><NIcon><SettingsOutline /></NIcon></template>
-          设置
-        </NButton>
-      </div>
+      <a class="brand" href="#files" aria-label="文件首页"><NIcon :size="30"><FolderOpenOutline /></NIcon><span>文件</span></a>
+      <NInput v-model:value="pattern" clearable placeholder="搜索文件或文件夹" aria-label="搜索文件或文件夹" class="global-search">
+        <template #prefix><NIcon :size="22"><SearchOutline /></NIcon></template>
+      </NInput>
     </header>
     <div class="workspace-body">
       <aside class="workspace-sidebar">
-        <div class="sidebar-label">工作空间</div>
+        <input ref="uploadPicker" type="file" multiple hidden aria-label="选择上传文件" @change="handlePickerChange" />
+        <button type="button" class="upload-cta" @click="uploadPicker?.click()"><span aria-hidden="true">＋</span> 上传文件</button>
         <nav aria-label="主导航">
-          <a href="#files" class="nav-item nav-item-active" aria-current="page"><NIcon :size="19"><FolderOpenOutline /></NIcon>全部文件</a>
-          <button class="nav-item" @click="changeMode"><NIcon :size="19"><SettingsOutline /></NIcon>空间设置</button>
+          <a href="#files" class="nav-item nav-item-active" aria-current="page"><NIcon :size="21"><FolderOpenOutline /></NIcon>全部文件</a>
+          <button type="button" class="nav-item" @click="changeMode"><NIcon :size="21"><SettingsOutline /></NIcon>设置</button>
         </nav>
-        <div class="sidebar-note"><NIcon :size="22"><FileTrayFullOutline /></NIcon><strong>让文件井然有序</strong><p>上传、查找与分享，<br />在一个空间轻松完成。</p></div>
-        <div class="sidebar-footer">文件空间 <span>·</span> 轻量文件管理</div>
       </aside>
       <main class="workspace-main" id="files">
-        <div class="page-heading">
-          <div><div class="eyebrow">我的工作空间</div><h1>全部文件</h1><p>管理你的文件，让每一次分享更简单。</p></div>
-          <NButton class="refresh-button" @click="createData">刷新数据</NButton>
-        </div>
-        <section class="upload-panel" aria-label="上传文件">
-          <NUpload directory-dnd :action="undefined" multiple :show-file-list="false" with-credentials :default-upload="false" :on-before-upload="beforeUpload">
-            <NUploadDragger class="upload-dropzone">
-              <div class="upload-prompt">
-                <span class="upload-symbol"><NIcon :size="28"><FileTrayFullOutline /></NIcon></span>
-                <div class="upload-copy"><h2>把文件放在这里</h2><p>拖拽文件到此处，或点击选择文件上传</p><span>支持多文件上传，也可直接粘贴剪贴板图片</span></div>
-                <button type="button" class="upload-cta">＋ 上传文件</button>
-              </div>
-            </NUploadDragger>
+        <section class="file-panel" aria-label="文件列表">
+          <div class="page-heading">
+            <h1>我的文件</h1>
+            <div class="file-toolbar-actions">
+              <NButton v-if="isAdmin" secondary type="error" :disabled="!checkedFileKeys.length" @click="handleBatchDelete">批量删除{{ checkedFileKeys.length ? `(${checkedFileKeys.length})` : '' }}</NButton>
+              <NButton quaternary class="refresh-button" @click="createData" aria-label="刷新文件">刷新</NButton>
+            </div>
+          </div>
+          <div class="workspace-status"><span>{{ switchMode ? '密码保护上传' : '公开上传' }}</span><span v-if="isAdmin">管理员</span></div>
+          <NUpload directory-dnd :action="undefined" multiple :show-file-list="false" with-credentials :default-upload="false" :on-before-upload="beforeUpload" class="workspace-upload">
+            <NUploadDragger class="upload-dropzone"><span>拖放文件上传</span><span class="drop-secondary">也可粘贴图片</span></NUploadDragger>
           </NUpload>
-        </section>
         <section v-if="uploads.length" aria-label="上传进度" class="upload-progress-panel">
           <div class="section-heading"><h2>传输记录</h2><span>{{ uploads.length }} 个任务</span></div>
           <div class="upload-grid">
@@ -407,22 +404,11 @@ watch(showFileSize, (val) => {
             </div>
           </div>
         </section>
-        <section class="file-panel" aria-label="文件列表">
-          <div class="file-toolbar">
-            <div class="file-panel-title"><NIcon :size="20"><FolderOpenOutline /></NIcon><h2>文件目录</h2></div>
-            <div class="file-toolbar-actions">
-              <NInput v-model:value="pattern" clearable placeholder="搜索文件或文件夹" aria-label="搜索文件或文件夹" class="file-search" />
-              <NButton v-if="isAdmin" secondary type="error" :disabled="!checkedFileKeys.length" @click="handleBatchDelete">批量删除{{ checkedFileKeys.length ? `(${checkedFileKeys.length})` : '' }}</NButton>
-            </div>
-          </div>
-          <div class="file-list-caption"><span>名称</span><span>{{ isAdmin ? '选择文件以批量管理' : '点击文件打开 · 右键复制链接' }}</span></div>
           <NScrollbar x-scrollable y-scrollable class="file-scrollbar">
-            <NTree v-if="fileList.length" class="file-tree" block-line :pattern="pattern" expand-on-click :checkable="isAdmin" :data="fileList" :node-props="nodeProps" :on-update:expanded-keys="updatePrefixWithExpaned" :checked-keys="checkedKeys" :on-update:checked-keys="handleCheckedKeysUpdate" :default-expanded-keys="defaultExpandedKeys" :filter="onFilter" virtual-scroll />
-            <div v-else class="empty-state"><span class="empty-icon"><NIcon :size="36"><FolderOpenOutline /></NIcon></span><h3>暂无文件</h3><p>上传第一个文件，开启你的文件空间。</p></div>
+            <NTree v-if="fileList.length" class="file-tree" block-line :pattern="pattern" expand-on-click :checkable="isAdmin" :data="fileList" :node-props="nodeProps" :on-update:expanded-keys="updatePrefixWithExpaned" :checked-keys="checkedKeys" :on-update:checked-keys="handleCheckedKeysUpdate" :default-expanded-keys="defaultExpandedKeys" :filter="onFilter" />
+            <div v-else class="empty-state"><h2>暂无文件</h2><p>选择文件或拖放到上方上传</p></div>
           </NScrollbar>
-          <div class="file-panel-footer"><span>{{ switchMode ? '已开启文件密码保护' : '当前上传模式：公开文件' }}</span><button @click="changeMode">管理偏好设置 →</button></div>
         </section>
-        <footer class="workspace-footer">支持拖拽上传与图片粘贴<span>你的文件，触手可及。</span></footer>
       </main>
     </div>
     <NDrawer v-model:show="isActive" :width="440" class="settings-drawer" aria-label="空间设置">

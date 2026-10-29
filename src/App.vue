@@ -4,17 +4,18 @@ import type { GlobalThemeOverrides } from 'naive-ui'
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
-    primaryColor: '#3568d4',
-    primaryColorHover: '#2858bd',
-    primaryColorPressed: '#214a9e',
-    primaryColorSuppl: '#3568d4',
-    borderRadius: '8px',
-    textColorBase: '#263247',
+    primaryColor: '#245d76',
+    primaryColorHover: '#194c62',
+    primaryColorPressed: '#103c50',
+    primaryColorSuppl: '#245d76',
+    borderRadius: '12px',
+    fontSize: '16px',
+    textColorBase: '#273139',
     fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
   },
-  Tree: { nodeHeight: '42px' },
-  Button: { heightMedium: '38px' },
-  Input: { heightMedium: '38px' }
+  Tree: { nodeHeight: '50px', fontSize: '16px' },
+  Button: { heightMedium: '44px', fontSizeMedium: '16px' },
+  Input: { heightMedium: '48px', fontSizeMedium: '16px' }
 }
 import filePage from './components/filePage.vue'
 </script>
