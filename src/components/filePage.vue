@@ -368,8 +368,6 @@ watch(showFileSize, (val) => {
     </header>
     <div class="workspace-body">
       <aside class="workspace-sidebar">
-        <input ref="uploadPicker" type="file" multiple hidden aria-label="选择上传文件" @change="handlePickerChange" />
-        <button type="button" class="upload-cta" @click="uploadPicker?.click()"><span aria-hidden="true">＋</span> 上传文件</button>
         <nav aria-label="主导航">
           <a href="#files" class="nav-item nav-item-active" aria-current="page"><NIcon :size="21"><FolderOpenOutline /></NIcon>全部文件</a>
           <button type="button" class="nav-item" @click="changeMode"><NIcon :size="21"><SettingsOutline /></NIcon>设置</button>
@@ -385,8 +383,9 @@ watch(showFileSize, (val) => {
             </div>
           </div>
           <div class="workspace-status"><span>{{ switchMode ? '密码保护上传' : '公开上传' }}</span><span v-if="isAdmin">管理员</span></div>
+          <input ref="uploadPicker" type="file" multiple hidden aria-label="选择上传文件" @change="handlePickerChange" />
           <NUpload directory-dnd :action="undefined" multiple :show-file-list="false" with-credentials :default-upload="false" :on-before-upload="beforeUpload" class="workspace-upload">
-            <NUploadDragger class="upload-dropzone"><span>拖放文件上传</span><span class="drop-secondary">也可粘贴图片</span></NUploadDragger>
+            <NUploadDragger class="upload-dropzone"><button type="button" class="upload-cta" @click.stop="uploadPicker?.click()">点击/拖放文件上传</button><span class="drop-secondary">也可粘贴图片</span></NUploadDragger>
           </NUpload>
         <section v-if="uploads.length" aria-label="上传进度" class="upload-progress-panel">
           <div class="section-heading"><h2>传输记录</h2><span>{{ uploads.length }} 个任务</span></div>

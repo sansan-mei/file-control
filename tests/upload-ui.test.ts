@@ -25,6 +25,8 @@ function pick(wrapper: ReturnType<typeof setup>, name = 'a.txt') {
 describe('file manager shell', () => {
   it('keeps the upload picker keyboard accessible with a native button', () => {
     const wrapper = setup()
+    expect(wrapper.find('.workspace-sidebar button.upload-cta').exists()).toBe(false)
+    expect(wrapper.find('main button.upload-cta').text()).toBe('点击/拖放文件上传')
     expect(wrapper.find('button.upload-cta').exists()).toBe(true)
     expect(wrapper.find('button.upload-cta').attributes('type')).toBe('button')
     expect(wrapper.find('input[type="file"][multiple]').exists()).toBe(true)
