@@ -13,11 +13,12 @@ import { resolve } from 'path'
  */
 export const md5Check = async (req: Request, res: Response, next: NextFunction) => {
   // 获取上传的文件列表，支持单文件和多文件上传
-  const files = req.files || (req.file ? [req.file] : [])
+  const uploadedFiles = req.files || (req.file ? [req.file] : [])
+  const files = Array.isArray(uploadedFiles) ? uploadedFiles : Object.values(uploadedFiles).flat()
   if (!files.length) return next()
 
   try {
-    for (const file of Array.isArray(files) ? files : Object.values(files).flat()) {
+    for (const file of files) {
       const filePath = resolve(file.destination, file.filename)
       // 计算文件的MD5值
       const md5 = await calculateMD5ByPath(filePath)

@@ -8,5 +8,5 @@ export default defineConfig({
   envDir: './tests/no-env',
   plugins: [vue(), vueJsx()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
-  test: { environment: 'jsdom', include: ['tests/**/*.test.ts'], maxWorkers: 1, minWorkers: 1 }
+  test: { environment: 'jsdom', include: ['tests/**/*.test.ts'], maxWorkers: 1 }
 })
