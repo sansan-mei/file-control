@@ -1,0 +1,43 @@
+import { afterEach, expect, it, vi } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import PwaSettings from '../src/components/PwaSettings.vue'
+
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
+it('keeps install/help controls in settings, consumes a user-triggered prompt, and reflects installed state', async () => {
+  const wrapper = mount(PwaSettings)
+  expect(wrapper.text()).toContain('添加到桌面')
+  expect(wrapper.text()).toContain('浏览器菜单')
+  expect(wrapper.text()).toContain('Safari')
+  expect(wrapper.text()).toContain('分享')
+  expect(wrapper.text()).toContain('当前浏览器不支持系统通知')
+  const prompt = vi.fn(async () => {})
+  const event = new Event('beforeinstallprompt', { cancelable: true })
+  Object.assign(event, { prompt, userChoice: Promise.resolve({ outcome: 'accepted' }) })
+  window.dispatchEvent(event)
+  await flushPromises()
+  expect(event.defaultPrevented).toBe(true)
+  expect(prompt).not.toHaveBeenCalled()
+  await wrapper.get('[data-testid="install-app"]').trigger('click')
+  expect(prompt).toHaveBeenCalledOnce()
+  window.dispatchEvent(new Event('appinstalled'))
+  await flushPromises()
+  expect(wrapper.text()).toContain('已添加到桌面')
+  expect(wrapper.find('[data-testid="install-app"]').exists()).toBe(false)
+  wrapper.unmount()
+})
+
+it('offers an explicit notification button, explains denied permissions and provides iOS fallback guidance', async () => {
+  vi.stubGlobal('isSecureContext', true)
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() })
+  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: {} })
+  const requestPermission = vi.fn(async () => 'denied')
+  vi.stubGlobal('Notification', { permission: 'default', requestPermission })
+  const wrapper = mount(PwaSettings)
+  expect(requestPermission).not.toHaveBeenCalled()
+  await wrapper.get('[data-testid="enable-notifications"]').trigger('click')
+  await flushPromises()
+  expect(requestPermission).toHaveBeenCalledOnce()
+  expect(wrapper.text()).toContain('已拒绝')
+  expect(wrapper.text()).toContain('关闭应用后不支持 Web Push')
+  wrapper.unmount()
+})

@@ -9,6 +9,8 @@ import {
 } from '@/api'
 import { filePwd_K, isPublic_K, showFileSize_K } from '@/constant'
 import { useIsMobile } from '@/hoooks'
+import { createTransferNotifier, refreshNotifications } from '@/pwa'
+import PwaSettings from './PwaSettings.vue'
 import { copyToClip, formatFileSize, getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
 import {
   CloudUploadOutline,
@@ -39,6 +41,7 @@ import type { TreeOptions } from 'naive-ui/es/tree/src/interface'
 import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const msg = useMessage()
+const transferNotifier = createTransferNotifier()
 const fileList = ref<TreeOptions>([])
 const valueMap = new Map<TreeOption['key'], boolean>()
 
@@ -145,13 +148,13 @@ const runUpload = async (file: File) => {
     })
     state.value.phase = 'success'
     scheduleUploadCleanup(state.value.id, 5000)
-    msg.success(`文件 ${file.name} 上传成功`)
+    if (!isUnmounted && !transferNotifier.complete(state.value.id, 'success')) msg.success(`文件 ${file.name} 上传成功`)
     await createData()
   } catch (error: any) {
     state.value.phase = 'error'
     state.value.error = error?.message || '上传失败'
     scheduleUploadCleanup(state.value.id, 12000)
-    msg.error(state.value.error!)
+    if (!isUnmounted && !transferNotifier.complete(state.value.id, 'error')) msg.error(state.value.error!)
   }
 }
 
@@ -201,6 +204,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   isUnmounted = true
+  transferNotifier.dispose()
   uploadCleanupTimers.forEach(clearTimeout)
   uploadCleanupTimers.clear()
   // 清理事件监听器
@@ -355,6 +359,7 @@ const beforeUpload: (options: {
 }
 
 const changeMode = () => {
+  refreshNotifications()
   mobilePanel.value = null
   isActive.value = true
 }
@@ -471,6 +476,7 @@ watch(showFileSize, (val) => {
           <div class="settings-section-title">显示偏好</div>
           <NFormItem label="显示文件大小"><div class="setting-row"><p>在文件名称旁显示文件大小。</p><NSwitch v-model:value="showFileSize" aria-label="显示文件大小"><template #checked>显示</template><template #unchecked>隐藏</template></NSwitch></div></NFormItem>
         </NForm>
+        <PwaSettings />
         <template #footer><NButton @click="isActive = false" type="primary" block>完成设置</NButton></template>
       </NDrawerContent>
     </NDrawer>
