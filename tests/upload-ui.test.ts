@@ -13,7 +13,7 @@ beforeEach(() => {
   vi.mocked(fetchDirectoryTree).mockResolvedValue({ status: 'Success', data: { children: [] } } as never)
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 enableAutoUnmount(afterEach)
 function setup() { return shallowMount(FilePage, { global: { renderStubDefaultSlot: true } }) }
 function pick(wrapper: ReturnType<typeof setup>, name = 'a.txt') {
@@ -89,8 +89,9 @@ describe('file manager shell', () => {
     const wrapper = setup()
     wrapper.findAllComponents(NButton).find(button => button.classes().includes('settings-button'))!.vm.$emit('click')
     await flushPromises()
-    expect(wrapper.findComponent(NDrawer).props('show')).toBe(true)
-    expect(wrapper.findComponent(NDrawer).classes()).toContain('settings-drawer')
+    const settings = wrapper.findAllComponents(NDrawer).find(drawer => drawer.classes().includes('settings-drawer'))!
+    expect(settings.props('show')).toBe(true)
+    expect(settings.props('placement')).toBe('right')
   })
 
   it('keeps search wired to the file tree and guest batch actions hidden', async () => {
@@ -107,6 +108,113 @@ describe('file manager shell', () => {
 })
 
  describe('upload UI', () => {
+  it('removes a successful upload after five seconds without waiting on a directory refresh', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    vi.mocked(uploadFile).mockResolvedValue({ status: 'Success' } as never)
+    const wrapper = setup()
+    await flushPromises()
+    vi.mocked(fetchDirectoryTree).mockImplementation(() => new Promise(() => {}))
+    void pick(wrapper)
+    await flushPromises()
+    expect(wrapper.findAll('.upload-entry')).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(wrapper.findAll('.upload-entry')).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(wrapper.findAll('.upload-entry')).toHaveLength(0)
+    expect(wrapper.find('[aria-label="上传进度"]').exists()).toBe(false)
+  })
+  it('keeps a successful upload successful when refreshing the directory fails', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      vi.mocked(uploadFile).mockResolvedValue({ status: 'Success' } as never)
+      const wrapper = setup()
+      await flushPromises()
+      vi.mocked(fetchDirectoryTree).mockRejectedValueOnce(new Error('directory unavailable'))
+      await pick(wrapper)
+      await flushPromises()
+      expect(warn).toHaveBeenCalledOnce()
+      expect(wrapper.findAll('.upload-success')).toHaveLength(1)
+      expect(wrapper.findAll('.upload-error')).toHaveLength(0)
+      expect(vi.getTimerCount()).toBe(1)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(wrapper.findAll('.upload-entry')).toHaveLength(0)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('closes the transfer drawer when its final record expires', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    vi.mocked(uploadFile).mockResolvedValue({ status: 'Success' } as never)
+    const wrapper = setup()
+    await flushPromises()
+    await pick(wrapper)
+    const drawer = wrapper.findAllComponents(NDrawer).find(item => item.classes().includes('transfers-drawer'))!
+    wrapper.findAllComponents(NButton).find(button => button.text().includes('传输记录'))!.vm.$emit('click')
+    await flushPromises()
+    expect(drawer.props('show')).toBe(true)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(drawer.props('show')).toBe(false)
+  })
+
+  it('keeps failures for twelve seconds and never expires uploads still in flight', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const wrapper = setup()
+    await flushPromises()
+    vi.mocked(fetchDirectorySize).mockRejectedValueOnce(new Error('quota exceeded'))
+    await pick(wrapper, 'failed.txt')
+    vi.mocked(uploadFile).mockImplementation(() => new Promise(() => {}))
+    void pick(wrapper, 'active.txt')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(11999)
+    expect(wrapper.findAll('.upload-entry')).toHaveLength(2)
+    expect(wrapper.text()).toContain('quota exceeded')
+    await vi.advanceTimersByTimeAsync(1)
+    expect(wrapper.findAll('.upload-entry')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('quota exceeded')
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(wrapper.text()).toContain('active.txt')
+    vi.mocked(uploadFile).mock.calls[0][1]!({ loaded: 5, total: 5 })
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(wrapper.text()).toContain('服务器处理中')
+    expect(wrapper.findAll('.upload-entry')).toHaveLength(1)
+  })
+
+  it('allows manual dismissal of completed records and releases their timers', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    vi.mocked(uploadFile).mockResolvedValue({ status: 'Success' } as never)
+    const wrapper = setup()
+    await flushPromises()
+    await pick(wrapper)
+    await flushPromises()
+    const dismiss = wrapper.find('button[aria-label="移除 a.txt 的上传记录"]')
+    expect(dismiss.exists()).toBe(true)
+    await dismiss.trigger('click')
+    expect(wrapper.findAll('.upload-entry')).toHaveLength(0)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('clears pending cleanup timers on unmount and does not create timers for late requests', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let finish!: (value: unknown) => void
+    vi.mocked(uploadFile)
+      .mockResolvedValueOnce({ status: 'Success' } as never)
+      .mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const wrapper = setup()
+    await flushPromises()
+    await pick(wrapper, 'done.txt')
+    const pending = pick(wrapper, 'late.txt')
+    await flushPromises()
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+    wrapper.unmount()
+    expect(vi.getTimerCount()).toBe(0)
+    finish({ status: 'Success' })
+    await pending
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('shows byte progress, waits for the server at 100%, then refreshes without timers', async () => {
     let finish!: (value: unknown) => void
     vi.mocked(uploadFile).mockImplementation(() => new Promise(resolve => { finish = resolve }))
