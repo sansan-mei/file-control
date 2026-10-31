@@ -4,5 +4,15 @@ node_modules
 Dockerfile
 .*
 */.*
+# Preserve only the existing public VITE build configuration from root .env.
+**/.env*
 !.env
+# Runtime secrets and reproducible local artifacts do not belong in build layers.
+**/*.pem
+**/*.key
+**/dist
+**/build
+**/coverage
+**/test-results
+**/playwright-report
 service/src/static/**/*
