@@ -215,7 +215,7 @@ async function createData() {
   try {
     const { data } = await fetchDirectoryTree<DirectoryNode>()
     if (data?.children?.length) {
-      fileList.value = generateFileListData(data.children.reverse())
+      fileList.value = generateFileListData(data.children)
       defaultExpandedKeys.value = [data.children.at(0)?.key]
     } else {
       fileList.value = []

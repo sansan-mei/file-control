@@ -1,6 +1,5 @@
 import { NOT_SHOW_PASS } from '#src/constant'
 import type { CatchErrorType, DirectoryNode, MyResponseType, RouterConfig } from '#src/types'
-import { Buffer } from 'buffer'
 import crypto from 'crypto'
 import CryptoJS from 'crypto-js'
 import { Router } from 'express'
@@ -70,16 +69,17 @@ export function getDirectoryTree(path: string): DirectoryNode | null {
       const dateA = new Date(a)
       const dateB = new Date(b)
 
-      // 如果其中一个日期无效，则返回该日期在前面
-      if (!dateA.getTime()) return -1
-      else if (!dateB.getTime()) return 1
+      // 普通名称排在日期后；同类无效日期保持原有顺序，时间戳 0 仍是有效日期。
+      const validA = !Number.isNaN(dateA.getTime())
+      const validB = !Number.isNaN(dateB.getTime())
+      if (!validA || !validB) return validA ? -1 : validB ? 1 : 0
 
-      // 按日期升序排序，最新的文件排在最后
-      return dateA.getTime() - dateB.getTime()
+      // 按日期降序排序，最新的文件排在前。
+      return dateB.getTime() - dateA.getTime()
     })
 
     files.forEach((file) => {
-      // 忽略 .gitkeep 和 .DS_Store 文件
+      // 保留主分支对隐藏占位文件的过滤。
       if (file === '.gitkeep' || file === '.DS_Store') return
       const childPath = join(path, file)
       const childStats = fs.statSync(childPath)
@@ -219,9 +219,9 @@ export async function calculateMD5ByPath(filePath: string): Promise<string> {
   })
 }
 
-export function calculateMD5FromBuffer(buffer: Buffer) {
+export function calculateMD5FromBuffer(buffer: crypto.BinaryLike) {
   const hash = crypto.createHash('md5')
-  hash.update(buffer.toString()) // Convert Buffer to string before updating
+  hash.update(buffer)
   return hash.digest('hex') // 返回Buffer的MD5哈希值
 }
 

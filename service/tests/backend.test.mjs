@@ -91,6 +91,29 @@ test('Express rejects spoofed forwarded IPs for short IPv4-mapped IPv6 trust pre
   assert.equal(data.ip, '127.0.0.1')
 })
 
+test('dev raw-byte buffer hashing is preserved for non-UTF8 binary content', () => {
+  const bytes = Buffer.from([0x00, 0xff, 0xfe, 0x80, 0x41])
+  assert.equal(fixture.calculateMD5FromBuffer(bytes), createHash('md5').update(bytes).digest('hex'))
+  assert.equal(fixture.calculateMD5FromBuffer(new Uint8Array(bytes)), createHash('md5').update(bytes).digest('hex'))
+})
+
+test('directory-tree preserves dev newest-first ordering without losing current file metadata or hidden-file filtering', async () => {
+  const root = join(sandbox, 'src/static/directory-order-regression')
+  for (const name of ['2024-01-01', '2026-10-31', '1970-01-01', 'alpha', 'zeta']) {
+    const folder = join(root, name)
+    await mkdir(folder, { recursive: true })
+    await writeFile(join(folder, 'order-marker.txt'), 'sort-marker')
+    await writeFile(join(folder, '.DS_Store'), 'ignored')
+    await writeFile(join(folder, '.gitkeep'), '')
+  }
+  const { response, data } = await request('/directory-tree')
+  assert.equal(response.status, 200)
+  const tree = data.data.children.find(node => node.label === 'directory-order-regression')
+  assert.ok(tree)
+  assert.deepEqual(tree.children.map(node => node.label), ['2026-10-31', '2024-01-01', '1970-01-01', 'alpha', 'zeta'])
+  assert.ok(leaves(tree).every(file => file.label === 'marker.txt' && file.size === Buffer.byteLength('sort-marker')))
+})
+
 test('public multipart upload, directory, download, range and ETag remain compatible', async () => {
   const body = 'public-upload-content'
   const { data } = await request('/upload-file', {

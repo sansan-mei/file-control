@@ -4,7 +4,7 @@ import { md5FileMap, renderRoutes } from '../../src/utils'
 import cookies from 'cookie-parser'
 import express from 'express'
 
-export { md5FileMap }
+export { md5FileMap, calculateMD5FromBuffer } from '../../src/utils'
 export const app = express()
 app.use(cookies())
 const router = express.Router()
