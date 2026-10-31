@@ -6,6 +6,7 @@
   "scripts": {
     "test": "vitest run --config vitest.config.ts",
     "test:e2e": "playwright test",
+    "ci:verify": "pnpm test && pnpm run build && pnpm --dir service test && pnpm --dir service type-check && pnpm --dir service build && pnpm audit --prod --audit-level low && pnpm --dir service audit --prod --audit-level low",
     "audit:security": "pnpm audit --audit-level low && pnpm --dir service audit --audit-level low",
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
