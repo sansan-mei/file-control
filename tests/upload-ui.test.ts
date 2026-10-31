@@ -3,6 +3,8 @@ import { shallowMount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import FilePage from '../src/components/filePage.vue'
 import { NButton, NDrawer, NInput, NTree, NUpload } from 'naive-ui'
 import { uploadFile, fetchDirectorySize, fetchDirectoryTree } from '../src/api'
+import * as pwa from '../src/pwa'
+import PwaSettings from '../src/components/PwaSettings.vue'
 
 vi.mock('../src/api', () => ({ uploadFile: vi.fn(), fetchDirectorySize: vi.fn(), fetchDirectoryTree: vi.fn(), fetchAdminStatus: vi.fn(async () => ({ data: { isAdmin: false } })), deleteFile: vi.fn(), deleteFiles: vi.fn() }))
 vi.mock('naive-ui', async (original) => ({ ...await original<typeof import('naive-ui')>(), useMessage: () => ({ success: vi.fn(), error: vi.fn() }), useLoadingBar: () => ({ start: vi.fn(), finish: vi.fn(), error: vi.fn() }) }))
@@ -23,6 +25,22 @@ function pick(wrapper: ReturnType<typeof setup>, name = 'a.txt') {
 }
 
 describe('file manager shell', () => {
+  it('keeps PWA settings in the existing drawer and sends terminal upload results to the notifier', async () => {
+    const complete = vi.fn(() => true)
+    const dispose = vi.fn()
+    const spy = vi.spyOn(pwa, 'createTransferNotifier').mockReturnValue({ complete, dispose })
+    try {
+      const wrapper = setup()
+      expect(wrapper.findComponent(PwaSettings).exists()).toBe(true)
+      vi.mocked(uploadFile).mockResolvedValueOnce({ status: 'Success' } as never)
+      await pick(wrapper)
+      vi.mocked(fetchDirectorySize).mockRejectedValueOnce(new Error('denied'))
+      await pick(wrapper, 'failed.txt')
+      expect(complete.mock.calls).toEqual([[1, 'success'], [2, 'error']])
+      wrapper.unmount()
+      expect(dispose).toHaveBeenCalledOnce()
+    } finally { spy.mockRestore() }
+  })
   it('keeps the upload picker keyboard accessible with a native button', () => {
     const wrapper = setup()
     expect(wrapper.find('.workspace-sidebar button.upload-cta').exists()).toBe(false)
@@ -86,9 +104,12 @@ describe('file manager shell', () => {
 
   it('opens the settings drawer from the top-right toolbar', async () => {
     vi.stubGlobal('requestIdleCallback', (callback: () => void) => { callback(); return 1 })
+    const refreshPermission = vi.spyOn(pwa, 'refreshNotifications')
     const wrapper = setup()
     wrapper.findAllComponents(NButton).find(button => button.classes().includes('settings-button'))!.vm.$emit('click')
     await flushPromises()
+    expect(refreshPermission).toHaveBeenCalledOnce()
+    refreshPermission.mockRestore()
     const settings = wrapper.findAllComponents(NDrawer).find(drawer => drawer.classes().includes('settings-drawer'))!
     expect(settings.props('show')).toBe(true)
     expect(settings.props('placement')).toBe('right')
