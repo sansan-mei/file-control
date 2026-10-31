@@ -43,7 +43,7 @@ npx --yes pnpm@9 --dir service build
 
 ## 图标设计与再生成
 
-图标参考 2FA 的简洁、高对比几何语言：暖白底、石墨色文件夹、低饱和蓝色叠层纸张，不使用文字、外框或烘焙圆角。192/512 PNG、Android maskable、180px Apple touch icon 以及 16/32/48 favicon 使用同一套原创图形。完整方形不透明背景交由系统裁切，主体位于中央直径 80% 的安全圆内，避免圆形或圆角方形桌面裁切截断文件夹。
+图标直接参考 2FA 项目的圆环字标语言：暖白底、石墨色圆环、中间大号 **FC**（File Control）文字，与 Anyone IM 的 **IM** 字标形成同一家族。字母使用原创几何矢量轮廓，不依赖字体，不再使用文件夹图案。`public/icons/app-icon.svg` 和所有位图由同一几何源生成。192/512 PNG、Android maskable、180px Apple touch icon 以及 16/32/48 favicon 使用同一套字标。完整方形不透明背景交由系统裁切，圆环和字母均位于中央直径 80% 的安全圆内，不烘焙外部圆角。
 
 ```sh
 # 仅开发时需要 Pillow；不增加应用运行/构建依赖。
