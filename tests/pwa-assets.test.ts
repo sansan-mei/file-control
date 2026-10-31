@@ -3,6 +3,14 @@ import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 describe('installable public app metadata', () => {
+  it('provides an accessible vector master with a prominent central FC monogram', () => {
+    const svg = readFileSync('public/icons/app-icon.svg', 'utf8')
+    expect(svg).toContain('aria-label="FC"')
+    expect(svg).toContain('data-monogram="FC"')
+    expect(svg).toContain('<title>File Control — FC</title>')
+    expect(svg).not.toMatch(/<image\b|<text\b|font-family|https?:\/\/(?!www\.w3\.org)/)
+  })
+
   it('uses a dedicated 180px iOS icon and matching multi-size browser favicon', () => {
     const html = readFileSync('index.html', 'utf8')
     expect(html).toContain('rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png"')
