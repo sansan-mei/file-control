@@ -1,5 +1,5 @@
 /* Public assets only. No app HTML, file data, API responses or runtime caching. */
-const CACHE = 'file-control-public-v1'
+const CACHE = 'file-control-public-v2'
 // This document is generated locally, never fetched from an authenticated server.
 const OFFLINE_HTML = '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>文件服务 · 离线</title><body style="font-family:system-ui;background:#eef3ff;color:#25304f;padding:10vh 8vw"><h1>当前离线</h1><p>请连接网络后重新打开文件服务。为保护隐私，文件列表、密码、上传和下载内容不会离线缓存。</p><p>离线时不能传输文件，也不会收到新的传输通知。</p><a href="/">重新连接</a></body></html>'
 const PUBLIC = new Map([

@@ -9,9 +9,23 @@ function worker() {
   const cache = { match: vi.fn(async (key: string | Request) => store.get(typeof key === 'string' ? key : key.url)), put: vi.fn(async (key: string, response: Response) => { store.set(key, response) }) }
   const fetch = vi.fn(async () => new Response('public', { headers: { 'Content-Type': 'text/css' } }))
   const clients = { claim: vi.fn(), matchAll: vi.fn(async () => [] as any[]), openWindow: vi.fn() }
-  vm.runInNewContext(readFileSync('public/sw.js', 'utf8'), { self: { location: { origin: 'https://files.test' }, registration: { scope: 'https://files.test/' }, clients, addEventListener: (name: string, handler: any) => handlers[name] = handler }, caches: { open: async () => cache, keys: async () => [], delete: vi.fn() }, fetch, URL, Response, Set, Promise })
-  return { handlers, fetch, cache, store, clients }
+  const openCache = vi.fn(async () => cache)
+  const deleteCache = vi.fn(async () => true)
+  vm.runInNewContext(readFileSync('public/sw.js', 'utf8'), { self: { location: { origin: 'https://files.test' }, registration: { scope: 'https://files.test/' }, clients, addEventListener: (name: string, handler: any) => handlers[name] = handler }, caches: { open: openCache, keys: async () => ['file-control-public-v1', 'file-control-public-v2', 'another-app-cache'], delete: deleteCache }, fetch, URL, Response, Set, Promise })
+  return { handlers, fetch, cache, store, clients, openCache, deleteCache }
 }
+
+it('refreshes previous icon caches on activation without touching another app cache', async () => {
+  const { handlers, openCache, deleteCache, fetch } = worker()
+  fetch.mockResolvedValue(new Response('png', { headers: { 'Content-Type': 'image/png' } }))
+  let pending!: Promise<void>
+  handlers.install({ waitUntil: (value: Promise<void>) => pending = value })
+  await pending
+  expect(openCache).toHaveBeenCalledWith('file-control-public-v2')
+  handlers.activate({ waitUntil: (value: Promise<void>) => pending = value })
+  await pending
+  expect(deleteCache.mock.calls).toEqual([['file-control-public-v1']])
+})
 
 it('never intercepts private/API/auth/query/upload/download or cross-origin requests; only fixed public assets and clean root navigation', async () => {
   expect(existsSync('public/sw.js')).toBe(true)
