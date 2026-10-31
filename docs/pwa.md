@@ -41,4 +41,13 @@ npx --yes pnpm@9 --dir service build
 
 浏览器测试构建 `tests/vite.e2e.config.ts` 的隔离生产包并预览，忽略应用 env、无生产代理，只使用 `/__test_api` fixtures；单 worker。使用 `channel: 'chromium'` 的完整新 headless 浏览器：默认 headless shell 在此环境会把 `Notification.permission` 固定为 denied，无法验证真实通知。测试关闭 Playwright 强制焦点模拟后验证后台路径。
 
-PNG 是原创建的文件夹图标，192/512 实际像素，maskable 图形在中央安全区。`scripts/generate-pwa-icons.py` 可用 Pillow 重新生成；应用运行和构建不依赖 Pillow，也未增加 npm 依赖。
+## 图标设计与再生成
+
+图标参考 2FA 的简洁、高对比几何语言：暖白底、石墨色文件夹、低饱和蓝色叠层纸张，不使用文字、外框或烘焙圆角。192/512 PNG、Android maskable、180px Apple touch icon 以及 16/32/48 favicon 使用同一套原创图形。完整方形不透明背景交由系统裁切，主体位于中央直径 80% 的安全圆内，避免圆形或圆角方形桌面裁切截断文件夹。
+
+```sh
+# 仅开发时需要 Pillow；不增加应用运行/构建依赖。
+python scripts/generate-pwa-icons.py
+```
+
+修改图标后同步递增 `public/sw.js` 中的缓存版本；本次为 `file-control-public-v2`。不会强制刷新或中断正在进行的上传。关闭所有旧应用窗口/标签页后重新打开，新的 worker 才能接管。已安装的桌面图标由浏览器/系统自行更新，不能保证即时生效；如果系统长期保留旧图标，可移除桌面入口后重新添加（不要清除网站数据）。尚未验证真实手机或操作系统桌面的图标更新行为。

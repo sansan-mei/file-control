@@ -28,6 +28,48 @@ for (const [width, height] of [[320, 568], [360, 640], [390, 844], [430, 932], [
   })
 }
 
+test('app icon surfaces decode correctly and remain inside Android maskable safe area', async ({ page }) => {
+  await openFixture(page)
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/icons/apple-touch-icon.png')
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('sizes', '180x180')
+  const manifest = await (await page.request.get('/manifest.webmanifest')).json()
+  const icons = [...manifest.icons, { src: '/icons/apple-touch-icon.png', sizes: '180x180' }]
+  for (const icon of icons) {
+    const response = await page.request.get(icon.src)
+    expect(response.ok()).toBe(true)
+    expect(response.headers()['content-type']).toContain('image/png')
+    const result = await page.evaluate(async (src: string) => {
+      const image = new Image()
+      image.src = src
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(image, 0, 0)
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      let transparent = 0, outsideSafeArea = 0, artworkPixels = 0
+      for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+        const i = (y * canvas.width + x) * 4
+        if (data[i + 3] !== 255) transparent++
+        // Ignore the tiny resampling halo at the edge of the artwork.
+        if (Math.max(Math.abs(data[i] - 248), Math.abs(data[i + 1] - 250), Math.abs(data[i + 2] - 249)) > 20) {
+          artworkPixels++
+          if (Math.hypot(x + 0.5 - canvas.width / 2, y + 0.5 - canvas.height / 2) > canvas.width * 0.4) outsideSafeArea++
+        }
+      }
+      return { size: `${canvas.width}x${canvas.height}`, transparent, outsideSafeArea, artworkPixels }
+    }, icon.src)
+    expect(result.size).toBe(icon.sizes)
+    expect(result.transparent).toBe(0)
+    expect(result.outsideSafeArea).toBe(0)
+    expect(result.artworkPixels).toBeGreaterThan(100)
+  }
+  const favicon = await page.request.get('/favicon.ico')
+  expect(favicon.ok()).toBe(true)
+  expect((await favicon.body()).readUInt16LE(2)).toBe(1)
+})
+
 async function ready(page: Page) {
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 10000 }).toBe(true)
 }
