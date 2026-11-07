@@ -30,15 +30,26 @@ export function fetchDirectorySize<T>(size: number) {
 }
 
 // 上传文件
-export function uploadFile<T>(data: FormData, onUploadProgress?: (event: UploadProgressEvent) => void): Promise<MyResponse<T>> {
+export function uploadFile<T>(
+  data: FormData,
+  onUploadProgress?: (event: UploadProgressEvent) => void,
+  uploadToken?: string | null
+): Promise<MyResponse<T>> {
   // mei-utils' post helper drops onUploadProgress. Keep its shared Axios instance,
   // response contract and error semantics, but pass the upload callback directly.
-  return request.post<MyResponse<T>>('/upload-file', data, { onUploadProgress }).then(
+  // The reservation token also travels as a header so the server can match it before
+  // parsing the multipart body.
+  const headers = uploadToken ? { 'X-Upload-Token': uploadToken } : undefined
+  return request.post<MyResponse<T>>('/upload-file', data, { onUploadProgress, headers }).then(
     (response) => {
       if (response.data.status === 'Success' || typeof response.data === 'string') return response.data
       return Promise.reject(response.data)
     },
-    (error) => { throw new Error(error?.message || 'Error') }
+    (error) => {
+      // Upload rejections (quota, password format, size) carry a JSON message.
+      const serverMessage = error?.response?.data?.message
+      throw new Error(typeof serverMessage === 'string' && serverMessage ? serverMessage : error?.message || 'Error')
+    }
   )
 }
 

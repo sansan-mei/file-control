@@ -127,7 +127,7 @@ test('public multipart upload, directory, download, range and ETag remain compat
   const download = await fetch(`${base}/check-file/${file.key}/hello.txt`)
   assert.equal(download.status, 200)
   assert.equal(await download.text(), body)
-  assert.equal(download.headers.get('etag'), file.key)
+  assert.equal(download.headers.get('etag'), `"${file.key}"`)
   const partial = await fetch(`${base}/check-file/${file.key}/hello.txt`, { headers: { Range: 'bytes=1-4' } })
   assert.equal(partial.status, 206)
   assert.equal(await partial.text(), body.slice(1, 5))
@@ -199,7 +199,7 @@ test('missing multipart boundary is rejected and server remains usable', async (
     method: 'POST', headers: { 'Content-Type': 'multipart/form-data' }, body: 'invalid'
   })
   assert.equal(response.status, 400)
-  assert.match(data.error, /boundary/i)
+  assert.match(data.message, /boundary/i)
   assert.deepEqual(await diskFiles(), before)
   assert.equal((await request('/admin-status')).response.status, 200)
 })
@@ -211,7 +211,7 @@ test('truncated multipart data is rejected without leaked files or process failu
     body: '--truncated\r\nContent-Disposition: form-data; name="file"; filename="truncated.txt"\r\nContent-Type: text/plain\r\n\r\nunclosed'
   })
   assert.equal(response.status, 400)
-  assert.match(data.error, /unexpected end|malformed/i)
+  assert.match(data.message, /unexpected end|malformed/i)
   assert.deepEqual(await diskFiles(), before)
   assert.equal((await request('/admin-status')).response.status, 200)
 })
@@ -250,6 +250,184 @@ test('fields count-limit errors remove previously written multipart files', asyn
   form.append('document', new Blob(['second-file']), 'count-second.txt')
   const { response, data } = await request('/fields', { method: 'POST', headers: { Cookie: 'isPublic=1' }, body: form })
   assert.equal(response.status, 400)
-  assert.equal(data.code, 'LIMIT_UNEXPECTED_FILE')
+  assert.equal(data.status, 'Fail')
+  assert.equal(data.data.code, 'LIMIT_UNEXPECTED_FILE')
   assert.deepEqual(await diskFiles(), before)
+})
+
+async function uploadAs(cookie, body, filename, headers = {}) {
+  return request('/upload-file', { method: 'POST', headers: { Cookie: cookie, ...headers }, body: upload(body, 'file', filename) })
+}
+
+async function findLeaf(label) {
+  const tree = await request('/directory-tree')
+  return leaves(tree.data.data).find(file => file.label === label)
+}
+
+async function sandboxFiles() {
+  return (await readdir(sandbox, { recursive: true, withFileTypes: true }))
+    .filter(entry => entry.isFile()).map(entry => join(entry.parentPath ?? entry.path, entry.name)).sort()
+}
+
+test('file passwords cannot place uploads outside the storage directory', async () => {
+  const before = await sandboxFiles()
+  for (const filePwd of ['../../escape', '..\\..\\escape', 'a/b']) {
+    const cookie = `isPublic=0; filePwd=${encodeURIComponent(filePwd)}`
+    const { response, data } = await uploadAs(cookie, 'escape-body', 'escape.html')
+    assert.equal(response.status, 400)
+    assert.equal(data.status, 'Fail')
+    assert.equal(data.message, '文件密码不能包含 / 或 \\')
+    // Routes without the guard still hit the storage-level check.
+    const fields = await request('/fields', { method: 'POST', headers: { Cookie: cookie }, body: upload('escape-body', 'document', 'escape.html') })
+    assert.equal(fields.response.status, 400)
+    assert.equal(fields.data.message, '文件密码不能包含 / 或 \\')
+  }
+  assert.deepEqual(await sandboxFiles(), before)
+})
+
+test('passwords containing - or # protect, list, download and delete consistently', async () => {
+  const password = 'a-b#c'
+  const cookie = `isPublic=0; filePwd=${encodeURIComponent(password)}`
+  assert.equal((await uploadAs(cookie, 'dash-body', 'dash.txt')).data.status, 'Success')
+  const file = await findLeaf('dash.txt')
+  assert.ok(file, 'label must not be cut at the first - of the password')
+  const denied = await fetch(`${base}/check-file/${file.key}/dash.txt`)
+  assert.equal(denied.status, 403)
+  await denied.text()
+  const allowed = await fetch(`${base}/check-file/${file.key}/dash.txt/${encodeURIComponent(password)}`)
+  assert.equal(await allowed.text(), 'dash-body')
+  const wrong = await request(`/delete-file?hash=${file.key}`, { method: 'DELETE', headers: { Cookie: 'filePwd=a' } })
+  assert.equal(wrong.data.message, '密码错误')
+  const deleted = await request(`/delete-file?hash=${file.key}`, { method: 'DELETE', headers: { Cookie: cookie } })
+  assert.equal(deleted.data.message, '删除成功')
+  assert.equal(await findLeaf('dash.txt'), undefined)
+  const missing = await request(`/delete-file?hash=${file.key}`, { method: 'DELETE', headers: { Cookie: cookie } })
+  assert.equal(missing.data.status, 'Fail')
+  assert.equal(missing.data.message, '文件不存在')
+})
+
+test('stored-name parsing keeps the historical format for public, protected and manual files', () => {
+  const { parseStoredName } = fixture
+  assert.deepEqual(parseStoredName('1730000000000-report.pdf'), { password: null, label: 'report.pdf' })
+  assert.deepEqual(parseStoredName('1730000000000-a#1730000000001-b.txt'), { password: null, label: 'a#1730000000001-b.txt' })
+  assert.deepEqual(parseStoredName('secret#1730000000000-report.pdf'), { password: 'secret', label: 'report.pdf' })
+  assert.deepEqual(parseStoredName('#1730000000000-empty.txt'), { password: '', label: 'empty.txt' })
+  assert.deepEqual(parseStoredName('x-y#1730000000000-z.txt'), { password: 'x-y', label: 'z.txt' })
+  assert.deepEqual(parseStoredName('order-marker.txt'), { password: null, label: 'marker.txt' })
+  assert.deepEqual(parseStoredName('pw#legacy-name.txt'), { password: 'pw', label: 'name.txt' })
+})
+
+test('downloads are sandboxed, correctly cached and keep stable share keys', async () => {
+  assert.equal((await uploadAs('isPublic=1', '<script>alert(1)</script>', 'page.html')).data.status, 'Success')
+  const page = await findLeaf('page.html')
+  const path = (await diskFiles()).find(candidate => candidate.endsWith('-page.html'))
+  const { realpath } = await import('node:fs/promises')
+  assert.equal(page.key, createHash('sha256').update(await realpath(path)).digest('hex'), 'share keys stay SHA-256 of the absolute path')
+  const html = await fetch(`${base}/check-file/${page.key}/页面 (1).html`)
+  assert.equal(html.status, 200)
+  assert.match(html.headers.get('content-type'), /^text\/html; charset=utf-8/)
+  assert.equal(html.headers.get('content-security-policy'), 'sandbox')
+  assert.equal(html.headers.get('x-content-type-options'), 'nosniff')
+  assert.equal(html.headers.get('cache-control'), 'public, max-age=604800')
+  assert.equal(html.headers.get('content-disposition'), `inline; filename="__ (1).html"; filename*=UTF-8''%E9%A1%B5%E9%9D%A2%20%281%29.html`)
+  await html.text()
+
+  assert.equal((await uploadAs('isPublic=1', 'png-bytes', 'image.png')).data.status, 'Success')
+  const image = await fetch(`${base}/check-file/${(await findLeaf('image.png')).key}/image.png`)
+  assert.equal(image.headers.get('content-type'), 'image/png')
+  assert.equal(image.headers.get('content-security-policy'), null)
+  await image.text()
+
+  assert.equal((await uploadAs('isPublic=0; filePwd=pw', 'private', 'private.txt')).data.status, 'Success')
+  const privateFile = await findLeaf('private.txt')
+  const privateResponse = await fetch(`${base}/check-file/${privateFile.key}/private.txt/pw`)
+  assert.equal(privateResponse.headers.get('cache-control'), 'private, max-age=604800')
+  await privateResponse.text()
+  // A cached validator must not bypass the password check.
+  const revalidate = await fetch(`${base}/check-file/${privateFile.key}/private.txt`, { headers: { 'If-None-Match': `"${privateFile.key}"` } })
+  assert.equal(revalidate.status, 403)
+  await revalidate.text()
+  // Validators cached before ETags were quoted still match.
+  for (const tag of [page.key, `"${page.key}"`, `W/"${page.key}"`]) {
+    const cached = await fetch(`${base}/check-file/${page.key}/page.html`, { headers: { 'If-None-Match': tag } })
+    assert.equal(cached.status, 304, tag)
+  }
+  const unknown = await fetch(`${base}/check-file/${'0'.repeat(64)}/x.txt`)
+  assert.equal(unknown.status, 404)
+  await unknown.text()
+})
+
+test('byte ranges handle suffix, open-ended, invalid and unsatisfiable requests', async () => {
+  const body = '0123456789'
+  assert.equal((await uploadAs('isPublic=1', body, 'range.txt')).data.status, 'Success')
+  const { key } = await findLeaf('range.txt')
+  const get = range => fetch(`${base}/check-file/${key}/range.txt`, { headers: { Range: range } })
+  const suffix = await get('bytes=-3')
+  assert.equal(suffix.status, 206)
+  assert.equal(suffix.headers.get('content-range'), 'bytes 7-9/10')
+  assert.equal(await suffix.text(), '789')
+  const open = await get('bytes=8-')
+  assert.equal(await open.text(), '89')
+  const clamped = await get('bytes=5-999')
+  assert.equal(clamped.headers.get('content-range'), 'bytes 5-9/10')
+  assert.equal(await clamped.text(), '56789')
+  const invalid = await get('bytes=5-2')
+  assert.equal(invalid.status, 200)
+  assert.equal(await invalid.text(), body)
+  const unsatisfiable = await get('bytes=10-')
+  assert.equal(unsatisfiable.status, 416)
+  assert.equal(unsatisfiable.headers.get('content-range'), 'bytes */10')
+  await unsatisfiable.text()
+})
+
+test('upload endpoint enforces the storage limit and a declared size', async () => {
+  const before = await diskFiles()
+  process.env.MAX_STORAGE_BYTES = '1'
+  try {
+    const { response, data } = await uploadAs('isPublic=1', 'over-quota', 'quota.txt')
+    assert.equal(response.status, 400)
+    assert.equal(data.message, '占用超出上限')
+  } finally {
+    delete process.env.MAX_STORAGE_BYTES
+  }
+  const chunked = await new Promise((resolve, reject) => {
+    const req = http.request(`${base}/upload-file`, {
+      method: 'POST', headers: { 'Content-Type': 'multipart/form-data; boundary=chunked', Cookie: 'isPublic=1' }
+    }, res => {
+      let text = ''
+      res.setEncoding('utf8')
+      res.on('data', chunk => { text += chunk })
+      res.on('end', () => resolve({ status: res.statusCode, data: JSON.parse(text) }))
+    })
+    req.on('error', reject)
+    req.write('--chunked\r\n')
+    req.end()
+  })
+  assert.equal(chunked.status, 411)
+  assert.equal(chunked.data.message, '缺少上传大小')
+  assert.deepEqual(await diskFiles(), before)
+})
+
+test('listing the directory does not re-read file contents', async (t) => {
+  const fs = require('node:fs')
+  const body = `hash-once-${Date.now()}`
+  const folder = join(sandbox, 'src/static/hash-once')
+  await mkdir(folder, { recursive: true })
+  await writeFile(join(folder, '1730000000000-hash-once.txt'), body)
+  await request('/directory-tree')
+  const hash = createHash('md5').update(body).digest('hex')
+  for (let attempt = 0; attempt < 50 && !fixture.md5FileMap.has(hash); attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  assert.ok(fixture.md5FileMap.has(hash), 'new files are still indexed for deduplication')
+  const reads = t.mock.method(fs, 'createReadStream')
+  await request('/directory-tree')
+  await request('/directory-tree')
+  await new Promise(resolve => setTimeout(resolve, 50))
+  assert.equal(reads.mock.callCount(), 0)
+})
+
+test('request logging redacts URL passwords', () => {
+  assert.equal(fixture.redactUrl('/api/check-file/abc/name.txt/secret?x=1'), '/api/check-file/abc/name.txt/***?x=1')
+  assert.equal(fixture.redactUrl('/api/check-file/abc/name.txt'), '/api/check-file/abc/name.txt')
 })
