@@ -291,6 +291,7 @@ test('passwords containing - or # protect, list, download and delete consistentl
   assert.equal((await uploadAs(cookie, 'dash-body', 'dash.txt')).data.status, 'Success')
   const file = await findLeaf('dash.txt')
   assert.ok(file, 'label must not be cut at the first - of the password')
+  assert.equal(file.locked, true)
   const denied = await fetch(`${base}/check-file/${file.key}/dash.txt`)
   assert.equal(denied.status, 403)
   await denied.text()
@@ -360,7 +361,9 @@ test('downloads are sandboxed, correctly cached and keep stable share keys', asy
 test('byte ranges handle suffix, open-ended, invalid and unsatisfiable requests', async () => {
   const body = '0123456789'
   assert.equal((await uploadAs('isPublic=1', body, 'range.txt')).data.status, 'Success')
-  const { key } = await findLeaf('range.txt')
+  const { key, locked, uploadedAt } = await findLeaf('range.txt')
+  assert.equal(locked, false)
+  assert.ok(Math.abs(uploadedAt - Date.now()) < 60_000, 'upload time comes from the stored name')
   const get = range => fetch(`${base}/check-file/${key}/range.txt`, { headers: { Range: range } })
   const suffix = await get('bytes=-3')
   assert.equal(suffix.status, 206)
@@ -420,6 +423,7 @@ test('listing the directory does not re-read file contents', async (t) => {
     await new Promise(resolve => setTimeout(resolve, 20))
   }
   assert.ok(fixture.md5FileMap.has(hash), 'new files are still indexed for deduplication')
+  assert.equal((await findLeaf('hash-once.txt')).uploadedAt, 1730000000000)
   const reads = t.mock.method(fs, 'createReadStream')
   await request('/directory-tree')
   await request('/directory-tree')

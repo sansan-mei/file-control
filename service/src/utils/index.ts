@@ -1,6 +1,6 @@
 import { NOT_SHOW_PASS } from '#src/constant'
 import type { CatchErrorType, DirectoryNode, MyResponseType, RouterConfig } from '#src/types'
-import { parseStoredName } from '#src/utils/storedName'
+import { parseStoredName, storedNameTimestamp } from '#src/utils/storedName'
 import crypto from 'crypto'
 import { Router } from 'express'
 import fs, { createReadStream, statSync } from 'fs'
@@ -130,11 +130,14 @@ function readDirectory(path: string): DirectoryNode | null {
       // Hidden files still get a key so direct links keep working.
       const key = FileApi.encrypt(childPath, true)
       if (childPath.includes(NOT_SHOW_PASS)) continue
+      const { label, password } = parseStoredName(file)
       dirNode.children!.push({
         key,
-        label: parseStoredName(file).label,
+        label,
         isFile: true,
-        size: childStats.size
+        size: childStats.size,
+        locked: password !== null,
+        uploadedAt: storedNameTimestamp(file) ?? Math.round(childStats.mtimeMs)
       })
     }
   }

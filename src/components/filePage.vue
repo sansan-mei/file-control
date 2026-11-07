@@ -11,44 +11,68 @@ import { filePwd_K, isPublic_K, showFileSize_K } from '@/constant'
 import { useIsMobile } from '@/hoooks'
 import { createTransferNotifier, refreshNotifications } from '@/pwa'
 import PwaSettings from './PwaSettings.vue'
-import { copyToClip, formatFileSize, getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
+import { copyToClip, downloadFile, formatFileSize, getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
+import { countFiles, describeFolderDate, fileKind, formatUploadTime, hasSearchMatch, type FileKind } from '@/utils/fileMeta'
 import {
+  ArchiveOutline,
   CloudUploadOutline,
+  CodeSlashOutline,
+  DocumentOutline,
+  DocumentTextOutline,
+  DownloadOutline,
   EllipsisHorizontalOutline,
+  EllipsisVertical,
   FileTrayFullOutline,
   Folder,
+  FolderOpen,
   FolderOpenOutline,
-  SearchOutline
+  GlobeOutline,
+  ImageOutline,
+  KeyOutline,
+  LinkOutline,
+  LockClosed,
+  LockClosedOutline,
+  MusicalNotesOutline,
+  OpenOutline,
+  ReaderOutline,
+  SearchOutline,
+  ShieldCheckmarkOutline,
+  TrashOutline,
+  VideocamOutline
 } from '@vicons/ionicons5'
 import type { TreeOption, UploadFileInfo } from 'naive-ui'
 import {
   NButton,
   NDrawer,
   NDrawerContent,
+  NDropdown,
   NForm,
   NFormItem,
   NIcon,
   NInput,
+  NModal,
   NScrollbar,
   NSwitch,
-  NTag,
   NTree,
   NUpload,
   NUploadDragger,
   useMessage
 } from 'naive-ui'
 import type { TreeOptions } from 'naive-ui/es/tree/src/interface'
-import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, h, onBeforeMount, onMounted, onUnmounted, ref, watch, type Component, type VNode } from 'vue'
 
 const msg = useMessage()
 const transferNotifier = createTransferNotifier()
 const fileList = ref<TreeOptions>([])
+const rawFiles = ref<DirectoryNode[]>([])
 const valueMap = new Map<TreeOption['key'], boolean>()
 
 const defaultExpandedKeys = ref<AnyArray>([])
 const checkedKeys = ref<Array<string | number>>([])
 const checkedFileKeys = ref<Array<string | number>>([])
 const pattern = ref('')
+const searchInput = ref<{ focus: () => void } | null>(null)
+const noSearchResults = computed(() => !!pattern.value && !hasSearchMatch(rawFiles.value, pattern.value))
 const isActive = ref(false)
 const mobilePanel = ref<'search' | 'actions' | null>(null)
 const showTransfers = ref(false)
@@ -59,7 +83,8 @@ const filePwd = ref(getCookieValue(filePwd_K))
 const filePwdInvalid = computed(() => /[\\/]/.test(filePwd.value || ''))
 const INVALID_FILE_PASSWORD_MESSAGE = '文件密码不能包含 / 或 \\'
 
-const showFileSize = ref(getCookieValue(showFileSize_K) === '1')
+// Sizes are shown unless the user explicitly turned them off.
+const showFileSize = ref(getCookieValue(showFileSize_K) !== '0')
 const isMobile = useIsMobile()
 const isAdmin = ref(false)
 
@@ -76,7 +101,7 @@ const updatePrefixWithExpaned = (
     case 'expand':
       meta.node.prefix = () => (
         <NIcon>
-          <FolderOpenOutline></FolderOpenOutline>
+          <FolderOpen></FolderOpen>
         </NIcon>
       )
       break
@@ -90,18 +115,36 @@ const updatePrefixWithExpaned = (
   }
 }
 
+// Locked files need a password unless the visitor is admin or already carries one.
+const needsPasswordPrompt = (item: DirectoryNode) => !!item.locked && !isAdmin.value && !filePwd.value
+
+const passwordPrompt = ref<{ item: DirectoryNode; value: string; intent: 'open' | 'download' } | null>(null)
+const confirmPasswordPrompt = () => {
+  const prompt = passwordPrompt.value
+  if (!prompt?.value) return
+  passwordPrompt.value = null
+  if (prompt.intent === 'download') downloadFile(prompt.item, prompt.value)
+  else openUrlByKey(prompt.item, prompt.value)
+}
+
+const openFile = (item: DirectoryNode) => {
+  if (needsPasswordPrompt(item)) {
+    passwordPrompt.value = { item, value: '', intent: 'open' }
+    return
+  }
+  if (valueMap.has(item.key)) return
+  valueMap.set(item.key, true)
+  requestIdleCallback(() => {
+    const win = openUrlByKey({ key: item.key, label: item.label })
+    win?.addEventListener('load', () => valueMap.delete(item.key))
+    setTimeout(() => valueMap.delete(item.key), 2000)
+  })
+}
+
 const nodeProps = ({ option }: { option: TreeOption }) => {
   return {
     async onClick() {
-      if (!option.children && !option.disabled) {
-        if (valueMap.has(option.key)) return
-        valueMap.set(option.key, true)
-        requestIdleCallback(() => {
-          const win = openUrlByKey({ key: option.key, label: (option.raw as DirectoryNode).label })
-          win?.addEventListener('load', () => valueMap.delete(option.key))
-          setTimeout(() => valueMap.delete(option.key), 2000)
-        })
-      }
+      if (!option.children && !option.disabled) openFile(option.raw as DirectoryNode)
     }
   }
 }
@@ -201,9 +244,19 @@ onBeforeMount(() => {
   Promise.all([fetchAdminState(), createData()])
 })
 
+// "/" focuses the desktop search box, as in most file managers.
+const handleShortcut = (event: KeyboardEvent) => {
+  if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || isMobile.value) return
+  const target = event.target as HTMLElement | null
+  if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return
+  event.preventDefault()
+  searchInput.value?.focus()
+}
+
 onMounted(() => {
   // 添加全局粘贴事件监听
   document.addEventListener('paste', handlePaste)
+  document.addEventListener('keydown', handleShortcut)
 })
 
 onUnmounted(() => {
@@ -213,11 +266,13 @@ onUnmounted(() => {
   uploadCleanupTimers.clear()
   // 清理事件监听器
   document.removeEventListener('paste', handlePaste)
+  document.removeEventListener('keydown', handleShortcut)
 })
 
 async function createData() {
   try {
     const { data } = await fetchDirectoryTree<DirectoryNode>()
+    rawFiles.value = data?.children ?? []
     if (data?.children?.length) {
       fileList.value = generateFileListData(data.children)
       defaultExpandedKeys.value = [data.children.at(0)?.key]
@@ -244,28 +299,79 @@ async function fetchAdminState() {
   }
 }
 
-const renderFileIcon = (isFile: boolean) => (
-  <NIcon>{isFile ? <FileTrayFullOutline /> : <Folder />}</NIcon>
+const KIND_ICONS: Record<FileKind, Component> = {
+  image: ImageOutline,
+  video: VideocamOutline,
+  audio: MusicalNotesOutline,
+  pdf: ReaderOutline,
+  archive: ArchiveOutline,
+  code: CodeSlashOutline,
+  text: DocumentTextOutline,
+  document: DocumentOutline,
+  other: FileTrayFullOutline
+}
+
+const renderFileIcon = (item: DirectoryNode) => {
+  if (!item.isFile) return <NIcon><Folder /></NIcon>
+  const kind = fileKind(item.label)
+  const Icon = KIND_ICONS[kind]
+  return <NIcon class={`file-kind file-kind-${kind}`}>{h(Icon)}</NIcon>
+}
+
+/** Public files can only be deleted by the admin; locked ones also by their password holder. */
+const canDelete = (item: DirectoryNode) => isAdmin.value || !!item.locked
+
+const copyLink = (item: DirectoryNode, withPassword = false) => {
+  copyToClip(openUrlByKey.getFullPath(item, withPassword ? filePwd.value : undefined))
+  msg.success(withPassword ? '已复制带密码的链接' : '已复制文件链接')
+}
+
+const fileActionOptions = (item: DirectoryNode) => {
+  const icon = (Icon: Component) => () => <NIcon>{h(Icon)}</NIcon>
+  const options: Array<Record<string, unknown>> = [
+    { key: 'open', label: '打开', icon: icon(OpenOutline) },
+    { key: 'download', label: '下载', icon: icon(DownloadOutline) },
+    { key: 'copy', label: '复制链接', icon: icon(LinkOutline) }
+  ]
+  if (item.locked && filePwd.value) options.push({ key: 'copy-password', label: '复制带密码的链接', icon: icon(KeyOutline) })
+  if (canDelete(item)) {
+    options.push({ type: 'divider', key: 'divider' })
+    options.push({ key: 'delete', label: '删除', icon: icon(TrashOutline), props: { class: 'danger-option' } })
+  }
+  return options
+}
+
+const handleFileAction = (action: string, item: DirectoryNode) => {
+  if (action === 'open') openFile(item)
+  else if (action === 'download') {
+    if (needsPasswordPrompt(item)) passwordPrompt.value = { item, value: '', intent: 'download' }
+    else downloadFile(item)
+  } else if (action === 'copy') copyLink(item)
+  else if (action === 'copy-password') copyLink(item, true)
+  else if (action === 'delete') handleDeleteFile(item)
+}
+
+const stopTreeClick = (event: Event) => event.stopPropagation()
+
+const renderFileActions = (item: DirectoryNode) => (
+  <div class="file-actions" onClick={stopTreeClick}>
+    <NDropdown
+      trigger="click"
+      placement="bottom-end"
+      options={fileActionOptions(item)}
+      onSelect={(action: string) => handleFileAction(action, item)}
+    >
+      <button type="button" class="icon-button file-action-button" aria-label={`${item.label} 的更多操作`}>
+        <NIcon size={20}><EllipsisVertical /></NIcon>
+      </button>
+    </NDropdown>
+  </div>
 )
 
-const renderDeleteButton = (key: string) => (
-  <NButton
-    text={true}
-    type="error"
-    style={{ padding: '0 0.5rem' }}
-    onClick={(e: MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      handleDeleteFile(key)
-    }}
-  >
-    删除
-  </NButton>
-)
-
-const handleDeleteFile = async (key: string) => {
+const handleDeleteFile = async (item: DirectoryNode) => {
+  if (!window.confirm(`确认删除「${item.label}」？删除后无法恢复。`)) return
   try {
-    await deleteFile(key)
+    await deleteFile(item.key)
     msg.success('删除成功')
     createData()
   } catch (res: any) {
@@ -313,40 +419,63 @@ const handleBatchDelete = async () => {
   }
 }
 
-const renderLabel = (item: DirectoryNode) => {
-  const elementProps = {
-    onContextmenu: (e: MouseEvent) => {
-      e.preventDefault()
-      copyToClip(openUrlByKey.getFullPath({ key: item.key, label: item.label }))
-      msg.success('已复制文件名')
-    },
-    class: 'cursor-context-menu select-none'
+const renderMeta = (item: DirectoryNode, folderLabel?: string) => {
+  const parts: Array<string | VNode> = []
+  if (item.isFile) {
+    if (item.locked) {
+      parts.push(
+        <em class="file-lock" title="需要密码才能打开">
+          <NIcon size={13}><LockClosed /></NIcon>需密码
+        </em>
+      )
+    }
+    if (showFileSize.value && item.size !== undefined) parts.push(formatFileSize(item.size))
+    if (item.uploadedAt) parts.push(formatUploadTime(item.uploadedAt, folderLabel))
+  } else {
+    const relative = describeFolderDate(item.label)
+    if (relative) parts.push(relative)
+    parts.push(`${countFiles(item)} 个文件`)
   }
-  const hoverClass = item.isFile && !isMobile.value ? 'group' : ''
+  if (!parts.length) return null
   return (
-    <div class={`${hoverClass}`}>
-      <div class="file-label flex items-center gap-3">
-        <span {...elementProps}>{item.label}</span>
-        {item.isFile && item.size && showFileSize.value && (
-          <NTag size="small" type="info" class="whitespace-nowrap">
-            {formatFileSize(item.size)}
-          </NTag>
-        )}
-      </div>
+    <div class="file-meta">
+      {parts.map((part, index) => (
+        <em key={index} class="file-meta-item">{part}</em>
+      ))}
     </div>
   )
 }
 
-function generateFileListData<T extends DirectoryNode[]>(data: T): TreeOptions {
+const renderLabel = (item: DirectoryNode, folderLabel?: string) => {
+  const elementProps = {
+    // Desktop shortcut kept from earlier versions: right-click copies the file link.
+    onContextmenu: (e: MouseEvent) => {
+      if (!item.isFile) return
+      e.preventDefault()
+      copyLink(item)
+    },
+    class: 'file-name cursor-context-menu select-none'
+  }
+  return (
+    <div class={`file-row ${item.isFile ? 'is-file' : 'is-folder'}`}>
+      <div class="file-label">
+        <span {...elementProps}>{item.label}</span>
+      </div>
+      {renderMeta(item, folderLabel)}
+    </div>
+  )
+}
+
+function generateFileListData<T extends DirectoryNode[]>(data: T, folderLabel?: string): TreeOptions {
   return data.map((item) => ({
     key: item.key,
-    label: () => renderLabel(item),
-    prefix: () => renderFileIcon(!!item.isFile),
+    label: () => renderLabel(item, folderLabel),
+    prefix: () => renderFileIcon(item),
     ...(item.children && {
-      children: generateFileListData(item.children)
+      children: generateFileListData(item.children, item.label)
     }),
     ...(item.isFile && {
-      suffix: () => renderDeleteButton(item.key)
+      suffix: () => renderFileActions(item)
     }),
     raw: item
   })) as unknown as TreeOptions
@@ -396,8 +525,9 @@ watch(showFileSize, (val) => {
   <div class="workspace-shell">
     <header class="app-header">
       <a class="brand" href="#files" aria-label="文件首页"><NIcon :size="isMobile ? 24 : 30"><FolderOpenOutline /></NIcon><span>{{ isMobile ? '我的文件' : '文件' }}</span></a>
-      <NInput v-if="!isMobile" v-model:value="pattern" clearable placeholder="搜索文件或文件夹" aria-label="搜索文件或文件夹" class="global-search">
+      <NInput v-if="!isMobile" ref="searchInput" v-model:value="pattern" clearable placeholder="搜索文件或文件夹" aria-label="搜索文件或文件夹" class="global-search" @keydown.esc="pattern = ''">
         <template #prefix><NIcon :size="22"><SearchOutline /></NIcon></template>
+        <template #suffix><kbd v-if="!pattern" class="search-shortcut" title="按 / 快速搜索">/</kbd></template>
       </NInput>
       <div v-else class="mobile-header-actions">
         <button type="button" class="icon-button" :class="{ 'has-filter': pattern }" aria-label="搜索文件" :aria-pressed="!!pattern" @click="mobilePanel = 'search'"><NIcon :size="22"><SearchOutline /></NIcon></button>
@@ -417,14 +547,29 @@ watch(showFileSize, (val) => {
               <NButton quaternary class="settings-button" @click="changeMode" aria-label="空间设置">设置</NButton>
             </div>
           </div>
-          <div v-if="!isMobile" class="workspace-status"><span>{{ switchMode ? '密码保护上传' : '公开上传' }}</span><span v-if="isAdmin">管理员</span></div>
+          <div v-if="!isMobile" class="workspace-status">
+            <button type="button" class="status-chip" :class="{ 'is-protected': switchMode }" :title="switchMode ? '新上传的文件需要密码才能打开，点击修改' : '新上传的文件所有人可见，点击设置密码'" @click="changeMode">
+              <NIcon :size="15"><LockClosedOutline v-if="switchMode" /><GlobeOutline v-else /></NIcon>{{ switchMode ? '密码保护上传' : '公开上传' }}
+            </button>
+            <em v-if="isAdmin" class="status-chip is-admin"><NIcon :size="15"><ShieldCheckmarkOutline /></NIcon>管理员</em>
+          </div>
           <input ref="uploadPicker" type="file" multiple hidden aria-label="选择上传文件" @change="handlePickerChange" />
           <NUpload v-if="!isMobile" directory-dnd :action="undefined" multiple :show-file-list="false" with-credentials :default-upload="false" :on-before-upload="beforeUpload" class="workspace-upload">
             <NUploadDragger class="upload-dropzone"><button type="button" class="upload-cta" @click.stop="uploadPicker?.click()">点击/拖放文件上传</button><span class="drop-secondary">也可粘贴图片</span></NUploadDragger>
           </NUpload>
 
+          <div v-if="isMobile && pattern" class="search-filter-bar" role="status">
+            <em>搜索「{{ pattern }}」</em>
+            <button type="button" class="link-button" @click="pattern = ''">清除</button>
+          </div>
           <NScrollbar x-scrollable y-scrollable class="file-scrollbar">
-            <NTree v-if="fileList.length" class="file-tree" block-line :pattern="pattern" :show-irrelevant-nodes="false" expand-on-click :checkable="isAdmin" :data="fileList" :node-props="nodeProps" :on-update:expanded-keys="updatePrefixWithExpaned" :checked-keys="checkedKeys" :on-update:checked-keys="handleCheckedKeysUpdate" :default-expanded-keys="defaultExpandedKeys" :filter="onFilter" />
+            <div v-if="noSearchResults" class="empty-state search-empty">
+              <NIcon :size="44"><SearchOutline /></NIcon>
+              <h2>没有找到相关文件</h2>
+              <p>没有名称包含「{{ pattern }}」的文件或文件夹。</p>
+              <NButton class="clear-search" @click="pattern = ''">清除搜索</NButton>
+            </div>
+            <NTree v-if="fileList.length" v-show="!noSearchResults" class="file-tree" block-line :pattern="pattern" :show-irrelevant-nodes="false" expand-on-click :checkable="isAdmin" :data="fileList" :node-props="nodeProps" :on-update:expanded-keys="updatePrefixWithExpaned" :checked-keys="checkedKeys" :on-update:checked-keys="handleCheckedKeysUpdate" :default-expanded-keys="defaultExpandedKeys" :filter="onFilter" />
             <div v-else class="empty-state"><NIcon :size="48"><FolderOpenOutline /></NIcon><h2>暂无文件</h2><p>{{ isMobile ? '点击右上角「上传」添加文件' : '选择文件或拖放到上方上传' }}</p></div>
           </NScrollbar>
         </section>
@@ -437,7 +582,10 @@ watch(showFileSize, (val) => {
           <p class="drawer-hint">按文件名筛选，关闭后查看结果。清空搜索可显示全部文件。</p>
         </template>
         <div v-else class="mobile-action-list">
-          <div class="drawer-status"><span>{{ switchMode ? '密码保护上传' : '公开上传' }}</span><span v-if="isAdmin">管理员</span></div>
+          <div class="drawer-status">
+            <em class="status-chip" :class="{ 'is-protected': switchMode }"><NIcon :size="15"><LockClosedOutline v-if="switchMode" /><GlobeOutline v-else /></NIcon>{{ switchMode ? '密码保护上传' : '公开上传' }}</em>
+            <em v-if="isAdmin" class="status-chip is-admin"><NIcon :size="15"><ShieldCheckmarkOutline /></NIcon>管理员</em>
+          </div>
           <NButton block @click="createData(); mobilePanel = null">刷新文件</NButton>
           <NButton block @click="showTransfers = true; mobilePanel = null">传输记录{{ uploads.length ? ` (${uploads.length})` : '' }}</NButton>
           <NButton block @click="changeMode">空间设置</NButton>
@@ -468,17 +616,27 @@ watch(showFileSize, (val) => {
         <template #footer><NButton block @click="showTransfers = false">返回文件</NButton></template>
       </NDrawerContent>
     </NDrawer>
+    <NModal :show="!!passwordPrompt" preset="card" class="password-modal" :title="'需要密码'" :bordered="false" size="small" :mask-closable="true" aria-label="输入文件密码" @update:show="(show: boolean) => { if (!show) passwordPrompt = null }">
+      <form v-if="passwordPrompt" class="password-form" @submit.prevent="confirmPasswordPrompt">
+        <p class="drawer-hint">「{{ passwordPrompt.item.label }}」受密码保护，请输入上传者设置的密码。</p>
+        <NInput v-model:value="passwordPrompt.value" type="password" show-password-on="click" placeholder="文件密码" aria-label="打开文件的密码" autofocus />
+        <div class="password-actions">
+          <NButton @click="passwordPrompt = null">取消</NButton>
+          <NButton type="primary" attr-type="submit" :disabled="!passwordPrompt.value">{{ passwordPrompt.intent === 'download' ? '下载文件' : '打开文件' }}</NButton>
+        </div>
+      </form>
+    </NModal>
     <NDrawer v-model:show="isActive" :placement="isMobile ? 'bottom' : 'right'" :width="isMobile ? undefined : 440" :height="isMobile ? 'auto' : undefined" class="workspace-drawer settings-drawer" aria-label="空间设置">
       <NDrawerContent title="空间设置" closable>
         <p class="settings-intro">调整访问密码与文件显示偏好，设置将自动保存到当前浏览器。</p>
         <NForm :disabled="formDisabled" label-placement="top">
           <div class="settings-section-title">访问与隐私</div>
           <NFormItem label="文件密码" :validation-status="filePwdInvalid ? 'error' : undefined" :feedback="filePwdInvalid ? INVALID_FILE_PASSWORD_MESSAGE : undefined"><NInput v-model:value="filePwd" aria-label="文件密码" type="password" show-password-on="click" placeholder="输入文件访问密码" /></NFormItem>
-          <NFormItem label="携带文件密码">
-            <div class="setting-row"><p>开启后，只有输入相同密码才能查看上传的文件。</p><NSwitch v-model:value="switchMode" aria-label="携带文件密码" :disabled="!filePwd"><template #checked>开启</template><template #unchecked>关闭</template></NSwitch></div>
+          <NFormItem label="上传时加密码">
+            <div class="setting-row"><p>{{ filePwd ? '开启后，新上传的文件需要输入相同密码才能打开；已上传的文件不受影响。' : '先填写上方的文件密码，才能开启加密上传。' }}</p><NSwitch v-model:value="switchMode" aria-label="携带文件密码" :disabled="!filePwd"><template #checked>开启</template><template #unchecked>关闭</template></NSwitch></div>
           </NFormItem>
           <div class="settings-section-title">显示偏好</div>
-          <NFormItem label="显示文件大小"><div class="setting-row"><p>在文件名称旁显示文件大小。</p><NSwitch v-model:value="showFileSize" aria-label="显示文件大小"><template #checked>显示</template><template #unchecked>隐藏</template></NSwitch></div></NFormItem>
+          <NFormItem label="显示文件大小"><div class="setting-row"><p>在文件信息中显示文件大小。</p><NSwitch v-model:value="showFileSize" aria-label="显示文件大小"><template #checked>显示</template><template #unchecked>隐藏</template></NSwitch></div></NFormItem>
         </NForm>
         <PwaSettings />
         <template #footer><NButton @click="isActive = false" type="primary" block>完成设置</NButton></template>

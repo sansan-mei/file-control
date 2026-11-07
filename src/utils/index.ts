@@ -2,15 +2,32 @@ import { copyToClip, getCookieValue, setCookieValue } from 'mei-utils/client'
 
 export { copyToClip, getCookieValue, setCookieValue }
 
-// 通过编码值打开图片
-export function openUrlByKey({ key, label }: { key: any; label: any }): Window | null {
-  const url = `/api/check-file/${encodeURIComponent(key as string)}/${encodeURIComponent(label as string)}`
-  const win = window.open(url)
-  return win
+type FileRef = { key: any; label: any }
+
+/** Download/preview URL; the optional password segment is understood by the server. */
+export function fileUrl({ key, label }: FileRef, password?: string, absolute = false) {
+  const path = `/api/check-file/${encodeURIComponent(key as string)}/${encodeURIComponent(label as string)}${
+    password ? `/${encodeURIComponent(password)}` : ''
+  }`
+  return absolute ? `${location.origin}${path}` : path
 }
 
-openUrlByKey.getFullPath = ({ key, label }: { key: any; label: any }) => {
-  return `${location.origin}/api/check-file/${encodeURIComponent(key as string)}/${encodeURIComponent(label as string)}`
+// 通过编码值打开图片
+export function openUrlByKey(item: FileRef, password?: string): Window | null {
+  return window.open(fileUrl(item, password))
+}
+
+openUrlByKey.getFullPath = (item: FileRef, password?: string) => fileUrl(item, password, true)
+
+/** Saves a file instead of previewing it (same-origin `download` attribute). */
+export function downloadFile(item: FileRef, password?: string) {
+  const link = document.createElement('a')
+  link.href = fileUrl(item, password)
+  link.download = String(item.label)
+  link.rel = 'noopener'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 export const formatFileSize = (size: number) => {
