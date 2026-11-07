@@ -4,7 +4,7 @@
  * - protected: `<password>#<13-digit timestamp>-<original name>`
  */
 const PUBLIC_NAME = /^\d{13}-/
-const PROTECTED_NAME = /^([^]*?)#\d{13}-/
+const PROTECTED_NAME = /^([^]*?)#(\d{13})-/
 
 export interface StoredName {
   /** `null` for public files; may be an empty string for files uploaded with an empty password. */
@@ -26,6 +26,13 @@ export function parseStoredName(fileName: string): StoredName {
   const prefix = fileName.slice(0, fileName.indexOf('-'))
   if (prefix.includes('#')) return { password: prefix.slice(0, prefix.indexOf('#')), label }
   return { password: null, label }
+}
+
+/** Upload time encoded in names written by the uploader, otherwise `null`. */
+export function storedNameTimestamp(fileName: string): number | null {
+  if (PUBLIC_NAME.test(fileName)) return Number(fileName.slice(0, 13))
+  const match = PROTECTED_NAME.exec(fileName)
+  return match ? Number(match[2]) : null
 }
 
 export const INVALID_FILE_PASSWORD_MESSAGE = '文件密码不能包含 / 或 \\'

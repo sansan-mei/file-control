@@ -6,6 +6,10 @@ export interface DirectoryNode {
   isFile: boolean
   children?: DirectoryNode[]
   size?: number
+  /** File needs a password (or admin) to open. */
+  locked?: boolean
+  /** Upload time in milliseconds since epoch. */
+  uploadedAt?: number
 }
 
 export type RouterConfig = {
