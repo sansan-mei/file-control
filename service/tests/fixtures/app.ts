@@ -1,10 +1,13 @@
 import '../../src/api'
+import { errorHandler } from '../../src/middleware/errorHandler'
 import { uploadInstance } from '../../src/middleware/uploadInstance'
 import { md5FileMap, renderRoutes } from '../../src/utils'
 import cookies from 'cookie-parser'
 import express from 'express'
 
 export { md5FileMap, calculateMD5FromBuffer } from '../../src/utils'
+export { parseStoredName } from '../../src/utils/storedName'
+export { redactUrl } from '../../src/middleware/logger'
 export const app = express()
 app.use(cookies())
 const router = express.Router()
@@ -18,7 +21,5 @@ app.use('/proxy', proxyApp)
 app.post('/fields', uploadInstance.fields([{ name: 'document', maxCount: 1 }]), (_req: express.Request, res: express.Response) => {
   res.json({ hashes: [...md5FileMap.keys()] })
 })
-app.use((err: Error, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (res.headersSent) return next(err)
-  res.status(400).json({ error: err.message, code: 'code' in err ? err.code : undefined })
-})
+// Same JSON error contract as the production entry point.
+app.use(errorHandler)

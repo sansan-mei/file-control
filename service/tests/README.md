@@ -21,7 +21,11 @@ listens on port 3003.
 Coverage includes public and protected uploads/downloads, Unicode filenames, directory
 listing, byte ranges, ETags, hard-link deduplication, admin status and batch deletion,
 capacity reservations, `multer.fields()` hashing, malformed/truncated/aborted multipart
-requests and count-limit cleanup. The Express proxy fixture verifies the patched
+requests and count-limit cleanup. Hardening regressions cover file passwords that try to
+escape the storage directory, passwords containing `-`/`#`, sandboxed inline downloads,
+private caching of protected files, stable SHA-256 share keys, server-side storage limits,
+suffix/unsatisfiable ranges, URL-password redaction in logs and directory listings that
+never re-read file contents. The Express proxy fixture verifies the patched
 `proxy-addr` IPv4-mapped IPv6 trust-prefix behavior; it does not change the production
 application's proxy configuration.
 

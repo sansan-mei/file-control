@@ -1,4 +1,4 @@
-import { calculateMD5ByPath, isHardLink, md5FileMap } from '#src/utils'
+import { calculateMD5ByPath, isHardLink, md5FileMap, rememberFileHash } from '#src/utils'
 import { NextFunction, Request, Response } from 'express'
 import { existsSync, linkSync, unlinkSync } from 'fs'
 import { resolve } from 'path'
@@ -29,9 +29,10 @@ export const md5Check = async (req: Request, res: Response, next: NextFunction) 
         // 如果原文件不存在，更新MD5映射为新文件
         if (!existsSync(existingPath)) {
           md5FileMap.delete(md5)
-          md5FileMap.set(md5, filePath)
+          rememberFileHash(md5, filePath)
           continue
         }
+        rememberFileHash(md5, filePath)
 
         try {
           // 创建硬链接的步骤：
@@ -58,7 +59,7 @@ export const md5Check = async (req: Request, res: Response, next: NextFunction) 
         }
       } else {
         // 记录新文件的MD5和路径
-        md5FileMap.set(md5, filePath)
+        rememberFileHash(md5, filePath)
       }
     }
     next()
