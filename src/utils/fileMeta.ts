@@ -33,18 +33,6 @@ function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
 }
 
-/** Relative hint shown next to a date folder: 今天 / 昨天 / 周三 / 3月5日 / 2024年3月5日. */
-export function describeFolderDate(label: string, now = new Date()): string | null {
-  const date = parseFolderDate(label)
-  if (!date) return null
-  const days = Math.round((startOfDay(now) - date.getTime()) / 86_400_000)
-  if (days === 0) return '今天'
-  if (days === 1) return '昨天'
-  if (days > 1 && days < 7) return `周${'日一二三四五六'[date.getDay()]}`
-  if (date.getFullYear() === now.getFullYear()) return `${date.getMonth() + 1}月${date.getDate()}日`
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
-}
-
 const pad = (value: number) => String(value).padStart(2, '0')
 
 /** Time of upload; the date is omitted when it is already given by the folder. */

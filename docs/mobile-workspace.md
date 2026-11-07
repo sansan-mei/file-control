@@ -9,7 +9,7 @@ On screens narrower than 768px, file browsing takes priority:
 
 ## File rows
 
-- Each file shows a type icon, a lock badge when it needs a password, its size (on unless the user turned it off) and its upload time. Date folders show a relative day (今天 / 昨天 / weekday / date) and their file count.
+- Each file shows a type icon, a lock badge when it needs a password, its size (on unless the user turned it off) and its upload time. Date folders show only their file count (the folder name already is the date); folder rows reserve the action-button slot so size, time and count line up in one column.
 - The `⋯` button per file offers open, download, copy link, copy link with the current password (locked files only) and delete. Delete is only offered where the server would allow it (admin, or locked files) and always asks for confirmation. Right-click on desktop still copies the link.
 - Opening a locked file without admin rights or a saved password asks for the password first instead of landing on the server's 403 page.
 - Search highlights matching names, shows an explicit empty state with a clear button, and on mobile keeps a visible "搜索「…」 · 清除" bar while filtering. `/` focuses the desktop search box; `Esc` clears it.
