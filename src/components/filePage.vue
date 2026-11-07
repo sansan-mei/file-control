@@ -55,6 +55,9 @@ const showTransfers = ref(false)
 const switchMode = ref((getCookieValue(filePwd_K) && getCookieValue(isPublic_K) !== '1') || false)
 const formDisabled = computed(() => !isActive.value)
 const filePwd = ref(getCookieValue(filePwd_K))
+// The password becomes part of the stored file name on the server.
+const filePwdInvalid = computed(() => /[\\/]/.test(filePwd.value || ''))
+const INVALID_FILE_PASSWORD_MESSAGE = '文件密码不能包含 / 或 \\'
 
 const showFileSize = ref(getCookieValue(showFileSize_K) === '1')
 const isMobile = useIsMobile()
@@ -133,6 +136,7 @@ const runUpload = async (file: File) => {
   const state = ref<UploadState>({ id: ++nextUploadId, name: file.name, phase: 'checking', loaded: 0 })
   uploads.value.push(state.value)
   try {
+    if (switchMode.value && filePwdInvalid.value) throw new Error(INVALID_FILE_PASSWORD_MESSAGE)
     const checkResult = await fetchDirectorySize<{ uploadToken: string | null }>(file.size)
     const body = new FormData()
     body.append('file', file)
@@ -145,7 +149,7 @@ const runUpload = async (file: File) => {
       state.value.total = total
       state.value.percent = total ? Math.min(100, Math.floor(event.loaded / total * 100)) : undefined
       state.value.phase = total && event.loaded >= total ? 'processing' : 'uploading'
-    })
+    }, checkResult.data?.uploadToken)
     state.value.phase = 'success'
     scheduleUploadCleanup(state.value.id, 5000)
     if (!isUnmounted && !transferNotifier.complete(state.value.id, 'success')) msg.success(`文件 ${file.name} 上传成功`)
@@ -469,7 +473,7 @@ watch(showFileSize, (val) => {
         <p class="settings-intro">调整访问密码与文件显示偏好，设置将自动保存到当前浏览器。</p>
         <NForm :disabled="formDisabled" label-placement="top">
           <div class="settings-section-title">访问与隐私</div>
-          <NFormItem label="文件密码"><NInput v-model:value="filePwd" aria-label="文件密码" type="password" show-password-on="click" placeholder="输入文件访问密码" /></NFormItem>
+          <NFormItem label="文件密码" :validation-status="filePwdInvalid ? 'error' : undefined" :feedback="filePwdInvalid ? INVALID_FILE_PASSWORD_MESSAGE : undefined"><NInput v-model:value="filePwd" aria-label="文件密码" type="password" show-password-on="click" placeholder="输入文件访问密码" /></NFormItem>
           <NFormItem label="携带文件密码">
             <div class="setting-row"><p>开启后，只有输入相同密码才能查看上传的文件。</p><NSwitch v-model:value="switchMode" aria-label="携带文件密码" :disabled="!filePwd"><template #checked>开启</template><template #unchecked>关闭</template></NSwitch></div>
           </NFormItem>
