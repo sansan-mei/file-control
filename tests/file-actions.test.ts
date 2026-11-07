@@ -69,7 +69,10 @@ describe('file rows', () => {
     expect(rows[1].find('.file-lock').text()).toBe('需密码')
     expect(wrapper.find('.file-kind-image').exists()).toBe(true)
     expect(wrapper.find('.file-kind-pdf').exists()).toBe(true)
-    expect(wrapper.find('.file-row.is-folder .file-meta').text()).toContain('2 个文件')
+    // Folder names are already dates: only the count is shown, no repeated date.
+    expect(wrapper.find('.file-row.is-folder .file-meta').text()).toBe('2 个文件')
+    expect(rows[0].find('.file-meta-size').text()).toBe('2.00KB')
+    expect(rows[0].find('.file-meta-time').text()).toBe('09:05')
   })
 
   it('offers delete only where the server would allow it and confirms before deleting', async () => {

@@ -12,7 +12,7 @@ import { useIsMobile } from '@/hoooks'
 import { createTransferNotifier, refreshNotifications } from '@/pwa'
 import PwaSettings from './PwaSettings.vue'
 import { copyToClip, downloadFile, formatFileSize, getCookieValue, openUrlByKey, setCookieValue } from '@/utils'
-import { countFiles, describeFolderDate, fileKind, formatUploadTime, hasSearchMatch, type FileKind } from '@/utils/fileMeta'
+import { countFiles, fileKind, formatUploadTime, hasSearchMatch, type FileKind } from '@/utils/fileMeta'
 import {
   ArchiveOutline,
   CloudUploadOutline,
@@ -420,27 +420,28 @@ const handleBatchDelete = async () => {
 }
 
 const renderMeta = (item: DirectoryNode, folderLabel?: string) => {
-  const parts: Array<string | VNode> = []
+  // Each value has its own column class so sizes and times line up across rows.
+  const parts: Array<[column: string, content: string | VNode]> = []
   if (item.isFile) {
     if (item.locked) {
-      parts.push(
-        <em class="file-lock" title="需要密码才能打开">
+      parts.push([
+        'lock',
+        <span class="file-lock" title="需要密码才能打开">
           <NIcon size={13}><LockClosed /></NIcon>需密码
-        </em>
-      )
+        </span>
+      ])
     }
-    if (showFileSize.value && item.size !== undefined) parts.push(formatFileSize(item.size))
-    if (item.uploadedAt) parts.push(formatUploadTime(item.uploadedAt, folderLabel))
+    if (showFileSize.value && item.size !== undefined) parts.push(['size', formatFileSize(item.size)])
+    if (item.uploadedAt) parts.push(['time', formatUploadTime(item.uploadedAt, folderLabel)])
   } else {
-    const relative = describeFolderDate(item.label)
-    if (relative) parts.push(relative)
-    parts.push(`${countFiles(item)} 个文件`)
+    // The folder name is already the date, so only the file count is added.
+    parts.push(['count', `${countFiles(item)} 个文件`])
   }
   if (!parts.length) return null
   return (
     <div class="file-meta">
-      {parts.map((part, index) => (
-        <em key={index} class="file-meta-item">{part}</em>
+      {parts.map(([column, content]) => (
+        <em key={column} class={`file-meta-item file-meta-${column}`}>{content}</em>
       ))}
     </div>
   )
@@ -474,9 +475,8 @@ function generateFileListData<T extends DirectoryNode[]>(data: T, folderLabel?: 
     ...(item.children && {
       children: generateFileListData(item.children, item.label)
     }),
-    ...(item.isFile && {
-      suffix: () => renderFileActions(item)
-    }),
+    // Folders get an empty slot of the same width so every meta column ends at the same edge.
+    suffix: () => (item.isFile ? renderFileActions(item) : <div class="file-actions" aria-hidden="true" />),
     raw: item
   })) as unknown as TreeOptions
 }

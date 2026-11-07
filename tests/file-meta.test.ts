@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countFiles, describeFolderDate, fileKind, formatUploadTime, hasSearchMatch, parseFolderDate } from '../src/utils/fileMeta'
+import { countFiles, fileKind, formatUploadTime, hasSearchMatch, parseFolderDate } from '../src/utils/fileMeta'
 import { fileUrl } from '../src/utils'
 
 describe('file metadata helpers', () => {
@@ -17,14 +17,9 @@ describe('file metadata helpers', () => {
     expect(fileKind('trailing.')).toBe('other')
   })
 
-  it('describes upload folders relative to today', () => {
-    const now = new Date(2026, 10, 7, 15, 30)
-    expect(describeFolderDate('2026-11-7', now)).toBe('今天')
-    expect(describeFolderDate('2026-11-6', now)).toBe('昨天')
-    expect(describeFolderDate('2026-11-4', now)).toBe('周三')
-    expect(describeFolderDate('2026-10-31', now)).toBe('10月31日')
-    expect(describeFolderDate('2025-1-5', now)).toBe('2025年1月5日')
-    expect(describeFolderDate('alpha', now)).toBeNull()
+  it('parses only valid YYYY-M-D upload folder names', () => {
+    expect(parseFolderDate('2026-11-7')?.getDate()).toBe(7)
+    expect(parseFolderDate('alpha')).toBeNull()
     expect(parseFolderDate('2026-2-30')).toBeNull()
   })
 
